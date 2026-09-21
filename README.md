@@ -19,8 +19,8 @@ that a court's IT can read all of it.
 | `BGE 140 III 115 E. 2.3 S. 118` | Found: court and date from the list. E. 2.3 exists. P. 118 lies within the decision. |
 | `BGE 140 III 115 E. 2.7` | Differs: the list has no E. 2.7 for this decision; it lists 2.1, 2.2, 2.3. |
 | `BGE 140 III 118` | Not in the list. P. 118 lies within BGE 140 III 115 (the pinpoint page was written as the first page). |
-| `Urteil 4A_747/2013` | Not in the list. One character apart: 4A_747/2012, Bundesgericht, 5 April 2013. |
-| `Urteil 4A_747/2012 vom 5. Mai 2013` | Differs: the list has 5 April 2013. |
+| `Urteil 4A_774/2013 vom 20. Juni 2013` | Not in the list. One character apart and with that date: 4A_774/2012. |
+| `Urteil 4A_747/2012 vom 5. Mai 2013` | Differs: the list has 5 April 2013. If a neighbouring number carries the written date, it is offered. |
 | `Urteil des Bundesverwaltungsgerichts 4A_747/2012` | Differs: under this number the list has a decision of the Bundesgericht. |
 | `ZR 110 Nr. 23` | Not checked: the list does not cover journals and reporters. |
 
@@ -46,6 +46,23 @@ Read [SECURITY.md](SECURITY.md) for the data flow and how to verify it. In short
 the page's Content-Security-Policy allows connections to its own origin only, so
 the browser refuses anything else; the only download is the cite list, a public
 file that is the same for everyone; `tests/egress.test.mjs` pins all of this.
+
+## Install
+
+The hosted copy is served from GitHub Pages at https://jonashertner.github.io/citecheck/
+(the same files as this repository, plus the current cite list). A court that
+wants nothing to leave its network hosts the folder itself: [docs/deployment.md](docs/deployment.md).
+
+Word for Mac, for one user (then restart Word; Home, Add-ins, under "Developer Add-ins"):
+
+```
+mkdir -p ~/Library/Containers/com.microsoft.Word/Data/Documents/wef
+curl -fsSL https://jonashertner.github.io/citecheck/manifest.xml -o ~/Library/Containers/com.microsoft.Word/Data/Documents/wef/citecheck.xml
+```
+
+Word for Windows: download the same `manifest.xml` to a shared folder and add that
+folder as a trusted add-in catalog (deployment guide, step 4), or upload it in the
+Microsoft 365 admin centre.
 
 ## Parts
 
@@ -77,10 +94,10 @@ BGE 140 III 0115<TAB>bge<TAB>CH<TAB>2014-02-11<TAB>1,2,2.1,2.2,2.3,3
 ```
 
 No text of any decision, no names, nothing from a court's own files. The pane
-holds the file as bytes and searches it in place: a lookup takes microseconds,
-a draft with 800 references under 0.2 s (`node tests/bench.mjs`, synthetic list
-of 1.1 million labels: 70 MB in memory, 9 MB to download; the real list has not
-been built yet, expect two to three times that).
+holds the file as bytes and searches it in place. The list of 20 September 2026:
+1,081,116 decisions under 1,111,445 labels, 851,009 of them with their Erwägung
+numbers; 12.3 MB to download, 84 MB in memory, opened in under 0.1 s. A lookup
+takes microseconds, a draft with 800 references under 0.2 s (`node tests/bench.mjs`).
 
 `index.json` next to it carries the date, the counts per court and the SHA-256
 the pane verifies before it uses a download. The pane asks for `index.json`

@@ -78,7 +78,8 @@ function coverage(finding) {
 function messages(f) {
   const out = [];
   if (f.status === 'missing') {
-    const near = (f.suggestions || []).slice(0, 2).map((s) => label(s.row, f.text));
+    // Only a neighbour the draft itself points to is named up front; mere nearness waits in the detail.
+    const near = (f.suggestions || []).filter((s) => s.reason !== 'one_character').slice(0, 2).map((s) => label(s.row, f.text));
     out.push(t('not_in_list') + (near.length ? ' ' + t('similar') + ': ' + near.join(', ') + '.' : ''));
   }
   for (const issue of f.issues) {

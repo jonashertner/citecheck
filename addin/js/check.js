@@ -54,14 +54,23 @@ function* oneEditAway(key) {
   }
 }
 
-function suggestDockets(index, key, parsed) {
+// In a dense series nearly every number has neighbours one character away, so
+// nearness alone says little. What the draft itself says decides the order: a
+// neighbour with the written date first, then one that has the written Erwägung,
+// then the court named. Without any of these the neighbours are only "similar".
+function suggestDockets(index, key, parsed, { dateOnly = false } = {}) {
   const out = [];
   for (const candidate of oneEditAway(key)) {
-    for (const row of index.lookup(candidate)) out.push({ reason: 'one_character', row });
-    if (out.length >= 12) break;
+    for (const row of index.lookup(candidate)) {
+      const date = Boolean(parsed.date) && row.date === parsed.date;
+      const pin = Boolean(parsed.pinpoint) && row.enums.some((e) => e === parsed.pinpoint || e.startsWith(parsed.pinpoint + '.'));
+      if (dateOnly && !date) continue;
+      out.push({ reason: date ? 'one_character_same_date' : 'one_character', row, score: (date ? 0 : 4) + (pin ? 0 : 2) + (inScope(parsed, row) ? 0 : 1) });
+    }
   }
-  const rank = (s) => (inScope(parsed, s.row) ? 0 : 2) + (parsed.date && s.row.date === parsed.date ? 0 : 1);
-  return out.sort((a, b) => rank(a) - rank(b)).slice(0, 4);
+  out.sort((a, b) => a.score - b.score);
+  const best = out.length && out[0].score < 4 ? out.filter((s) => s.score < 4) : out;
+  return best.slice(0, 3).map(({ score, ...s }) => s);
 }
 
 function bgeRange(index, row) {
@@ -80,7 +89,8 @@ function suggestBge(index, parsed) {
   const at = before && parseBgeKey(before.key);
   if (at && at.volume === volume && at.part === part.toUpperCase()) {
     const range = bgeRange(index, before);
-    if (range.last === null || page <= range.last) out.push({ reason: 'contains_page', row: before, range });
+    // The last decision of a part in the list has no known end: only a page close to its start counts.
+    if (range.last === null ? page - range.first <= 40 : page <= range.last) out.push({ reason: 'contains_page', row: before, range });
   }
   for (const other of BGE_PARTS) {
     if (other === part.toUpperCase()) continue;
@@ -137,6 +147,8 @@ function checkOne(index, parsed) {
   if (parsed.date && !useBge && rows.every((r) => r.date && r.date !== parsed.date)) {
     result.status = 'differs';
     result.issues.push({ kind: 'date', written: parsed.date, listed: [...new Set(rows.map((r) => r.date))] });
+    // The number may be the typing error, not the date: neighbours decided on the written date.
+    result.suggestions = suggestDockets(index, key, parsed, { dateOnly: true });
   }
   if (parsed.pinpoint) {
     const pin = checkPinpoint(parsed.pinpoint, rows);

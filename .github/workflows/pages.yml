@@ -1,0 +1,42 @@
+# Serves addin/ at https://jonashertner.github.io/citecheck/ together with the
+# current cite list. The list is not kept in git: it is the newest release tagged
+# list-<date> (index.json + cite-index-<date>.tsv.gz), verified before it is served.
+name: pages
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch and verify the cite list
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=$(gh release list --limit 50 --json tagName -q '[.[].tagName | select(startswith("list-"))][0]')
+          test -n "$tag"
+          gh release download "$tag" --dir addin/index --pattern index.json --pattern 'cite-index-*.tsv.gz'
+          cd addin/index
+          file=$(python3 -c "import json; print(json.load(open('index.json'))['file'])")
+          want=$(python3 -c "import json; print(json.load(open('index.json'))['sha256'])")
+          echo "$want  $file" | sha256sum --check
+      - name: Manifest for this host
+        run: python3 build/make_manifest.py --base-url https://jonashertner.github.io/citecheck/ --out addin/manifest.xml
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: addin
+      - id: deployment
+        uses: actions/deploy-pages@v4

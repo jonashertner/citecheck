@@ -80,6 +80,20 @@ test('missing: near labels for typing errors', () => {
   assert.deepEqual(transposed.suggestions.map((s) => s.row.key), ['4A_747/2012']);
 });
 
+test('what the draft says ranks the near labels; a wrong date looks for the number it belongs to', () => {
+  const dated = only('Urteil 4A_774/2013 vom 20. Juni 2013');                 // 4A_774/2012 has that date
+  assert.deepEqual(dated.suggestions.map((s) => [s.row.key, s.reason]), [['4A_774/2012', 'one_character_same_date']]);
+  const wrongNumber = only('Urteil 4A_774/2012 vom 5. April 2013');          // exists, but the date is 4A_747/2012's
+  assert.equal(wrongNumber.status, 'differs');
+  assert.deepEqual(wrongNumber.suggestions.map((s) => s.row.key), ['4A_747/2012']);
+  assert.deepEqual(only('Urteil 4A_747/2012 vom 5. Mai 2013').suggestions, []);
+});
+
+test('the last BGE of a part has no known end: a far page is not placed in it', () => {
+  assert.deepEqual(only('BGE 140 III 999').suggestions.filter((s) => s.reason === 'contains_page'), []);
+  assert.equal(only('BGE 140 III 150').suggestions[0].reason, 'contains_page');   // 134 + 16
+});
+
 test('missing BGE: the pinpoint page was written as the first page; wrong part', () => {
   const page = only('BGE 140 III 118');
   assert.equal(page.status, 'missing');
