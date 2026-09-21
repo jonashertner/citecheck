@@ -136,7 +136,7 @@ async function gunzip(buffer) {
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
-async function fetchManifest(base) {
+export async function fetchManifest(base) {
   const response = await fetch(base + 'index.json', { cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer' });
   if (!response.ok) throw new Error('index.json: HTTP ' + response.status);
   const manifest = await response.json();

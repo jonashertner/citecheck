@@ -1,7 +1,8 @@
 // The task pane. State lives in this module; the DOM is rebuilt from it with
 // createElement and textContent only, so text from the draft is never parsed as HTML.
 /* global Office */
-import { openIndex } from './index.js';
+import { fetchManifest, openIndex } from './index.js';
+import { readDocx } from './docx.js';
 import { checkDocument } from './check.js';
 import { parseBgeKey } from './keys.js';
 import * as word from './word.js';
@@ -14,7 +15,8 @@ const $ = (id) => document.getElementById(id);
 const state = {
   host: 'browser',          // 'word' | 'browser'
   index: null, manifest: null, listNote: null,
-  askedAt: 0, result: null, filter: 'all', open: null,
+  file: null,               // outside Word: {name, paragraphs} of the chosen .docx
+  result: null, filter: 'all', open: null,
   busy: false,
 };
 
@@ -128,6 +130,9 @@ function renderChrome() {
   $('paste').hidden = state.host === 'word';
   $('paste-label').textContent = t('paste_label');
   $('paste-hint').textContent = t('paste_hint');
+  $('pick').textContent = t('pick_file');
+  $('paste-label').hidden = $('paste-text').hidden = Boolean(state.file);
+  $('file-line').textContent = state.file ? t('file_loaded', { name: state.file.name, n: formatNumber(state.file.paragraphs.length) }) : t('file_hint');
   $('privacy').textContent = t('privacy');
   $('about-open').textContent = t('privacy_more');
   $('langs').replaceChildren(...LANGUAGES.map((code) => {
@@ -294,7 +299,6 @@ async function loadList(refresh) {
         $('progress-text').textContent = t('loading') + ': ' + t('loading_progress', { got: (got / 1e6).toFixed(1), total: (total / 1e6).toFixed(1) });
       },
     });
-    state.askedAt = Date.now();
     state.index = opened.index;
     state.manifest = opened.manifest;
     const days = Math.floor((Date.now() - Date.parse(opened.manifest.generated)) / 86400000);
@@ -311,8 +315,15 @@ async function loadList(refresh) {
 }
 
 async function runCheck() {
-  // A pane left open over lunch: ask for a newer list before checking with an old one.
-  if (Date.now() - state.askedAt > 4 * 3600 * 1000) await loadList(true);
+  // Every check first asks whether a newer list exists (a few KB); the list itself
+  // is downloaded only when it changed. Unreachable: check with the list at hand.
+  try {
+    const latest = await fetchManifest(INDEX_BASE);
+    if (!state.manifest || latest.sha256 !== state.manifest.sha256) await loadList(true);
+    else if (state.listNote && state.listNote.key === 'list_stale') state.listNote = null;
+  } catch {
+    if (state.index) state.listNote = { key: 'list_stale' };
+  }
   if (!state.index) return;
   state.busy = 'check';
   alertUser('');
@@ -322,7 +333,8 @@ async function runCheck() {
     try {
       paragraphs = state.host === 'word'
         ? await word.readDocument()
-        : $('paste-text').value.split(/\n+/).map((text, index) => ({ text, where: { part: 'body', index } }));
+        : state.file ? state.file.paragraphs
+          : $('paste-text').value.split(/\n+/).map((text, index) => ({ text, where: { part: 'body', index } }));
     } catch (error) {
       alertUser(errorText(error, 'err_read'));
       return;
@@ -335,6 +347,21 @@ async function runCheck() {
     state.busy = false;
     render();
   }
+}
+
+// Outside Word: a .docx chosen or dropped is read in this page and checked at once.
+async function takeFile(file) {
+  if (!file) return;
+  alertUser('');
+  try {
+    state.file = { name: file.name, paragraphs: await readDocx(await file.arrayBuffer()) };
+    $('paste-text').value = '';
+  } catch (error) {
+    state.file = null;
+    alertUser(t('err_docx', { message: (error && error.message) || String(error) }));
+  }
+  renderChrome();
+  if (state.file && state.index) await runCheck();
 }
 
 // The interface language is the only thing remembered between sessions.
@@ -352,6 +379,13 @@ async function start() {
 
   $('check').addEventListener('click', runCheck);
   $('update').addEventListener('click', () => loadList(true));
+  $('pick').addEventListener('click', () => $('file').click());
+  $('file').addEventListener('change', () => takeFile($('file').files[0]));
+  $('paste-text').addEventListener('input', () => { if (state.file) { state.file = null; renderChrome(); } });
+  const drop = $('drop');
+  for (const type of ['dragenter', 'dragover']) drop.addEventListener(type, (e) => { e.preventDefault(); drop.classList.add('over'); });
+  for (const type of ['dragleave', 'drop']) drop.addEventListener(type, (e) => { e.preventDefault(); drop.classList.remove('over'); });
+  drop.addEventListener('drop', (e) => takeFile(e.dataTransfer && e.dataTransfer.files[0]));
   $('about-open').addEventListener('click', () => $('about').showModal());
   $('about-close').addEventListener('click', () => $('about').close());
   render();

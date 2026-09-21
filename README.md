@@ -64,6 +64,13 @@ Word for Windows: download the same `manifest.xml` to a shared folder and add th
 folder as a trusted add-in catalog (deployment guide, step 4), or upload it in the
 Microsoft 365 admin centre.
 
+## Without Word
+
+Open https://jonashertner.github.io/citecheck/taskpane.html in a browser and choose
+or drop the `.docx` (or paste text). The file is read and checked in the page; it
+is not uploaded. Footnotes are included, text marked as deleted by tracked changes
+is not. In Word none of this is needed: the add-in reads the open draft directly.
+
 ## Parts
 
 ```
@@ -73,6 +80,7 @@ addin/            the add-in: static files, served by any web server
   js/index.js     the cite list: download, SHA-256 check, cache, binary search
   js/check.js     the rules: found / differs / not in the list / not checked
   js/word.js      the three things asked of Word: read, select, comment
+  js/docx.js      outside Word: reads a .docx in the page (unzip + paragraph text)
   js/app.js       the pane
   index/          where the cite list is served from (index.json + one .tsv.gz)
 build/
@@ -101,9 +109,9 @@ takes microseconds, a draft with 800 references under 0.2 s (`node tests/bench.m
 
 `index.json` next to it carries the date, the counts per court and the SHA-256
 the pane verifies before it uses a download. The pane asks for `index.json`
-when it opens, when "Liste aktualisieren" is pressed, and before a check if the
-last answer is older than four hours; it downloads the list only when the hash
-changed. Without a connection it checks with the stored list and says so.
+when it opens, when "Liste aktualisieren" is pressed, and at the start of every
+check, so a check always runs against the newest list; the list itself is
+downloaded only when its hash changed. Without a connection it checks with the stored list and says so.
 
 Build it from the OpenCaseLaw verification pack (`ocl pack pull`, about 8 GB):
 

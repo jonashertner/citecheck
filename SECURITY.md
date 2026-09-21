@@ -9,7 +9,7 @@ without trusting us.
 | Request | To | Contains | When |
 |---|---|---|---|
 | The add-in's files (HTML, CSS, JS, icons) | the host in the manifest: your intranet server, or ours | nothing about the document | when the pane opens |
-| `index/index.json` (a few KB) | the same host | nothing about the document | pane opens; "Liste aktualisieren"; before a check if the last answer is older than 4 h |
+| `index/index.json` (a few KB) | the same host | nothing about the document | pane opens; "Liste aktualisieren"; at the start of every check |
 | `index/cite-index-<date>.tsv.gz` | the same host | nothing about the document | only when `index.json` names a list the pane does not have |
 | `office.js` | `appsforoffice.microsoft.com` | nothing about the document | when the pane opens; Microsoft requires every Office add-in to load it from there |
 
@@ -65,6 +65,12 @@ workstation is Microsoft's script host, which Word contacts for any add-in.
   file name and its SHA-256; compare with `sha256sum` on the server.
 
 ## The document
+
+Outside Word (the page opened in a browser) a `.docx` can be chosen or dropped. It
+is read with the browser's file API into the page's memory, unzipped there
+(`addin/js/docx.js`, no library) and checked; it is not uploaded, and the policy
+above would refuse an upload. The same holds for pasted text.
+
 
 The add-in asks Word for `ReadWriteDocument` because attaching a comment is a
 write. It calls three things: read the paragraphs (and footnotes), select a

@@ -39,8 +39,13 @@
     </header>
 
     <section class="paste" id="paste" hidden>
+      <div class="drop" id="drop">
+        <button type="button" class="quiet" id="pick"></button>
+        <input type="file" id="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
+        <p id="file-line"></p>
+      </div>
       <label for="paste-text" id="paste-label">Text des Entwurfs</label>
-      <textarea id="paste-text" rows="4" spellcheck="false"></textarea>
+      <textarea id="paste-text" rows="3" spellcheck="false"></textarea>
       <p id="paste-hint"></p>
     </section>
 
