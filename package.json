@@ -1,0 +1,11 @@
+{
+  "name": "citecheck",
+  "version": "0.1.0",
+  "description": "Word add-in that checks the case references of a draft against the OpenCaseLaw cite list, on the workstation.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs"
+  }
+}
