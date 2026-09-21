@@ -1,7 +1,7 @@
 // The cite list: one sorted text file, held as bytes and searched in place.
 //
 //   #ocl-cite-index 1
-//   key \t court \t canton \t date \t e-numbers (comma separated)
+//   key \t court \t canton \t date \t e-numbers (comma separated) \t decision id
 //
 // Lines are sorted by the UTF-8 bytes of the key, so a lookup is a binary search
 // over the buffer and a million decisions cost their file size in memory, not a
@@ -60,8 +60,8 @@ export class CiteIndex {
     if (start >= this.bytes.length) return null;
     const line = decoder.decode(this.bytes.subarray(start, this._lineEnd(start)));
     if (!line || line[0] === '#') return null;
-    const [key, court, canton, date, enums] = line.split('\t');
-    return { key, court, canton: canton || '', date: date || '', enums: enums ? enums.split(',') : [] };
+    const [key, court, canton, date, enums, id] = line.split('\t');
+    return { key, court, canton: canton || '', date: date || '', enums: enums ? enums.split(',') : [], id: id || '' };
   }
 
   // Every decision filed under the key.

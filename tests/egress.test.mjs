@@ -32,12 +32,20 @@ test('only index.js talks to the network, and only to the list next to the page'
     for (const api of ['XMLHttpRequest', 'WebSocket', 'EventSource', 'sendBeacon', 'RTCPeerConnection', 'importScripts', 'eval(', 'new Function', 'innerHTML', 'outerHTML', 'insertAdjacentHTML', 'document.write']) {
       assert.ok(!source.includes(api), `${file} uses ${api}`);
     }
-    assert.ok(!/https?:\/\//.test(source.replace('http://www.w3.org/2000/svg', '')), `${file} names an absolute URL`);
+    // Two absolute addresses are allowed: the SVG namespace, and the base of the decision links.
+    const named = source.replace('http://www.w3.org/2000/svg', '').replace("const DECISION_BASE = 'https://mcp.opencaselaw.ch/entscheid/';", '');
+    assert.ok(!/https?:\/\//.test(named), `${file} names an absolute URL`);
     if (file !== 'index.js') assert.ok(!/\bfetch\(/.test(source), `${file} calls fetch`);
   }
   const fetches = [...code('index.js').matchAll(/fetch\(([^,]+),/g)].map((m) => m[1].trim());
   assert.deepEqual(fetches, ["base + 'index.json'", 'base + manifest.file']);
   assert.match(code('index.js'), /\^\[A-Za-z0-9\._-\]\+\$/, 'the list file name cannot leave the directory');
+});
+
+test('the decision address is only ever a link the user clicks, never a request', () => {
+  const uses = code('app.js').split('\n').filter((line) => line.includes('DECISION_BASE') && !line.includes('const DECISION_BASE'));
+  assert.deepEqual(uses.map((line) => line.trim().slice(0, 25)), ['a.href = DECISION_BASE + ']);
+  assert.match(code('app.js'), /a\.rel = 'noopener noreferrer'/);
 });
 
 test('Word is asked to read, select and comment, nothing else', () => {

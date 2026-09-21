@@ -173,6 +173,8 @@ h1 { font: 600 17px/1.25 var(--sans); letter-spacing: -0.01em; }
 .f-found .ctx mark { box-shadow: none; font-weight: 600; }
 .say { margin-top: 7px; }
 .coverage { color: var(--muted); }
+.open-links .cite { font: inherit; }
+a.cite { text-decoration-thickness: 1px; }
 .sugg-title { margin-top: 10px; font-weight: 600; }
 .sugg li { margin-top: 4px; padding-left: 10px; border-left: 2px solid var(--rule-strong); }
 .sugg .cite { display: block; color: var(--ink); }

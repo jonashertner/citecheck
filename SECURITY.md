@@ -13,7 +13,13 @@ without trusting us.
 | `index/cite-index-<date>.tsv.gz` | the same host | nothing about the document | only when `index.json` names a list the pane does not have |
 | `office.js` | `appsforoffice.microsoft.com` | nothing about the document | when the pane opens; Microsoft requires every Office add-in to load it from there |
 
-That is the complete list. There is no telemetry, no error reporting, no
+That is the complete list of what the add-in requests. Separately, a finding offers
+a link to the decision on opencaselaw.ch. Nothing is requested unless the user
+clicks it; the click opens that one page in the user's browser, without a
+referrer, and opencaselaw.ch then sees that this address was opened (as for any
+visitor), not the draft and not the other references.
+
+There is no telemetry, no error reporting, no
 account, no cookie. Requests are sent without credentials and without a referrer.
 The cite list is public and identical for every user, so which list a
 workstation downloads says nothing about what is being drafted.

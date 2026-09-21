@@ -144,7 +144,9 @@ function checkOne(index, parsed) {
     result.issues.push({ kind: 'court', named: [...parsed.courts], canton: parsed.canton, rows: all });
     return result;
   }
-  if (parsed.date && !useBge && rows.every((r) => r.date && r.date !== parsed.date)) {
+  // 1 January is how the corpus writes a decision of which only the year is known.
+  const dated = rows.filter((r) => r.date && !r.date.endsWith('-01-01'));
+  if (parsed.date && !useBge && dated.length === rows.length && dated.every((r) => r.date !== parsed.date)) {
     result.status = 'differs';
     result.issues.push({ kind: 'date', written: parsed.date, listed: [...new Set(rows.map((r) => r.date))] });
     // The number may be the typing error, not the date: neighbours decided on the written date.

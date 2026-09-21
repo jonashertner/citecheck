@@ -7,11 +7,11 @@ Input: the OpenCaseLaw verification pack (one SQLite file; `ocl pack pull`, or
 scripts/build_verification_pack.py in the OpenCaseLaw repository). It is opened
 read-only. Output, written to a temporary name and renamed:
 
-    cite-index-<date>.tsv.gz   one line per (label, decision), sorted by label
+    cite-index-<date>-<hash>.tsv.gz   one line per (label, decision), sorted by label
     index.json                 manifest: date, counts, SHA-256, courts covered
 
-A line is  key \\t court \\t canton \\t date \\t e-numbers . It holds no text of
-any decision and no citation string: the list answers "is there a decision
+A line is  key \\t court \\t canton \\t date \\t e-numbers \\t decision id . It holds
+no text of any decision and no citation string: the list answers "is there a decision
 under this label, and does it have an Erwägung with this number", nothing else.
 Standard library only. The output is byte-for-byte reproducible from the pack.
 """
@@ -31,7 +31,8 @@ from pathlib import Path
 SCHEMA = 1
 HEADER = "#ocl-cite-index 1"
 _PARTS = {"I", "IA", "IB", "II", "III", "IV", "V"}
-_BGE_BARE = re.compile(r"^(?:BGE\s+)?(\d{1,3})\s+(Ia|Ib|III|II|IV|I|V)\s+(\d{1,4})$", re.IGNORECASE)
+# The corpus writes a BGE row's own label "140 III 115" and, for the volumes before 80, "73_II_6".
+_BGE_BARE = re.compile(r"^(?:(?:BGE|ATF|DTF)[\s_]+)?(\d{1,3})[\s_]+(Ia|Ib|III|II|IV|I|V)[\s_]+(\d{1,4})$", re.IGNORECASE)
 _FEDERAL = re.compile(r"(\d[A-Z]{1,2})[ _.](\d{1,5}/\d{4})")
 _SPACES = str.maketrans({c: " " for c in "\u00a0\u2007\u2009\u202f"} | {c: "-" for c in "\u2010\u2011\u2012\u2013\u2014\u2015\u2212"})
 _ENUM = re.compile(r"^\d+(?:\.\d+)*(?:[a-z]{1,2})?(?:/[a-z]{1,2})*$")
@@ -83,11 +84,16 @@ def build(pack: Path, out_dir: Path, *, sample: bool = False, log=lambda m: prin
     log("reading decisions")
     decisions = {}
     courts: dict[str, dict] = {}
-    lines: dict[tuple, set] = {}
-    for decision_id, court, canton, date, d1, d2 in con.execute(
-            "SELECT decision_id, court, canton, decision_date, docket_number, docket_number_2 FROM decisions"):
+    lines: dict[tuple, dict] = {}     # (key, court, canton, date) -> {"enums": set, "id": decision id}
+
+    def add(key, court, canton, date, decision_id, canonical):
+        line = lines.setdefault((key, court, canton, date), {"enums": set(), "id": canonical or decision_id})
+        line["enums"].update(enums.get(decision_id, ()))
+
+    for decision_id, court, canton, date, d1, d2, canonical in con.execute(
+            "SELECT decision_id, court, canton, decision_date, docket_number, docket_number_2, canonical_decision_id FROM decisions"):
         court, canton, date = court or "", canton or "", (date or "")[:10]
-        decisions[decision_id] = (court, canton, date)
+        decisions[decision_id] = (court, canton, date, canonical)
         c = courts.setdefault(court, {"canton": canton, "decisions": 0, "with_numbering": 0, "first": None, "last": None})
         c["decisions"] += 1
         c["with_numbering"] += 1 if decision_id in enums else 0
@@ -97,7 +103,7 @@ def build(pack: Path, out_dir: Path, *, sample: bool = False, log=lambda m: prin
         for docket in (d1, d2):
             key = key_for(court, docket)
             if key:
-                lines.setdefault((key, court, canton, date), set()).update(enums.get(decision_id, ()))
+                add(key, court, canton, date, decision_id, canonical)
 
     log("reading docket aliases")
     try:
@@ -106,24 +112,27 @@ def build(pack: Path, out_dir: Path, *, sample: bool = False, log=lambda m: prin
         aliases = []
     for alias, decision_id in aliases:
         if decision_id in decisions:
-            court, canton, date = decisions[decision_id]
+            court, canton, date, canonical = decisions[decision_id]
             key = key_for(court, (alias or "").replace("_", " "))
             if key:
-                lines.setdefault((key, court, canton, date), set()).update(enums.get(decision_id, ()))
+                add(key, court, canton, date, decision_id, canonical)
     con.close()
 
     log(f"sorting {len(lines):,} lines")
     ordered = sorted(lines.items(), key=lambda kv: (kv[0][0].encode("utf-8"), kv[0][1:]))
-    body = "\n".join([HEADER] + ["\t".join((*k, ",".join(sorted(v, key=_natural)))) for k, v in ordered]) + "\n"
+    clean = lambda s: re.sub(r"[\t\n\r]", " ", s or "")
+    body = "\n".join([HEADER] + ["\t".join((*k, ",".join(sorted(v["enums"], key=_natural)), clean(v["id"]))) for k, v in ordered]) + "\n"
     raw = body.encode("utf-8")
 
     generated = meta.get("built_at") or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    name = f"cite-index-{generated[:10]}.tsv.gz"
     out_dir.mkdir(parents=True, exist_ok=True)
-    tmp = out_dir / (name + ".tmp")
+    tmp = out_dir / "cite-index.tsv.gz.tmp"
     with open(tmp, "wb") as fh, gzip.GzipFile(filename="", mode="wb", fileobj=fh, compresslevel=9, mtime=0) as gz:
         gz.write(raw)
     blob = tmp.read_bytes()
+    # The name carries the content's hash: a cache between server and pane can never
+    # hand out an older list under the name of a newer one.
+    name = f"cite-index-{generated[:10]}-{hashlib.sha256(blob).hexdigest()[:8]}.tsv.gz"
     os.replace(tmp, out_dir / name)
 
     manifest = {
@@ -134,6 +143,14 @@ def build(pack: Path, out_dir: Path, *, sample: bool = False, log=lambda m: prin
         "source": "OpenCaseLaw verification pack", "licence": "CC0-1.0",
         "courts": {k: courts[k] for k in sorted(courts)},
     }
+    # A whole range of BGE volumes keyed wrongly is invisible in the totals (the first
+    # list lacked volumes 1-79): the manifest names the span and any volume without a line.
+    volumes = sorted({int(k[0][4:7]) for k, _ in ordered if k[0].startswith("BGE ")})
+    if volumes:
+        absent = [v for v in range(volumes[0], volumes[-1] + 1) if v not in set(volumes)]
+        manifest["bge_volumes"] = {"first": volumes[0], "last": volumes[-1], "absent": absent}
+        if absent or (volumes[0] > 1 and not sample):
+            log(f"WARNING: BGE volumes start at {volumes[0]}, absent in between: {absent}")
     if sample:
         manifest["sample"] = True   # the pane then says the list is not fit for work
     tmp = out_dir / "index.json.tmp"

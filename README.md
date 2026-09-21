@@ -37,6 +37,9 @@ What it does not do, and says so in the pane:
 - An Erwägung can only be checked where OpenCaseLaw has the decision's numbering
   (about three quarters of the corpus). Elsewhere the pane says "cannot be checked".
 - When a reference has several pinpoints ("E. 2.3 und 2.4"), the first is checked.
+- Every decision found, and every near label offered, links to the decision on
+  opencaselaw.ch, at the Erwägung where the list has it. The link is only followed
+  when clicked.
 - It never changes the draft. It can select a reference and, if asked, attach a
   Word comment to it.
 
@@ -97,14 +100,14 @@ One gzip text file, one line per label and decision, sorted by label:
 
 ```
 #ocl-cite-index 1
-4A_747/2012<TAB>bger<TAB>CH<TAB>2013-04-05<TAB>1,2,3,3.1,3.2,4
-BGE 140 III 0115<TAB>bge<TAB>CH<TAB>2014-02-11<TAB>1,2,2.1,2.2,2.3,3
+4A_747/2012<TAB>bger<TAB>CH<TAB>2013-04-05<TAB>1,2,3.1,3.2,3.3,4,5,6<TAB>bger_4A_747_2012
+BGE 140 III 0115<TAB>bge<TAB>CH<TAB>2014-01-17<TAB>2,3,4,5,6,6.1,6.2<TAB>bge_BGE_140_III_115
 ```
 
 No text of any decision, no names, nothing from a court's own files. The pane
 holds the file as bytes and searches it in place. The list of 20 September 2026:
 1,081,116 decisions under 1,111,445 labels, 851,009 of them with their Erwägung
-numbers; 12.3 MB to download, 84 MB in memory, opened in under 0.1 s. A lookup
+numbers; 16.7 MB to download, 111 MB in memory, opened in about 0.1 s. A lookup
 takes microseconds, a draft with 800 references under 0.2 s (`node tests/bench.mjs`).
 
 `index.json` next to it carries the date, the counts per court and the SHA-256

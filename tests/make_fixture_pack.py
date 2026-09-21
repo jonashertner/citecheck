@@ -10,6 +10,7 @@ DECISIONS = [
     ("bge_140_III_134", "bge", "CH", "2014-03-04", "140 III 134", None),
     ("bge_140_III_16", "bge", "CH", "2013-12-03", "140 III 16", None),
     ("bge_140_II_202", "bge", "CH", "2014-04-01", "140 II 202", None),
+    ("bge_73_II_6", "bge", "CH", "1947-01-01", "73_II_6", None),          # early volumes: underscores, year-only date
     ("bger_4A_747_2012", "bger", "CH", "2013-04-05", "4A_747/2012", None),
     ("bger_4A_774_2012", "bger", "CH", "2013-06-20", "4A_774/2012", None),
     ("bger_4C_230_2006", "bger", "CH", "2006-10-02", "4C.230/2006", None),
@@ -23,6 +24,7 @@ DECISIONS = [
 PARAGRAPHS = {
     "bge_140_III_115": ["1", "2", "2.1", "2.2", "2.3", "3", "3.1", "3.2", "4"],
     "bger_4A_747_2012": ["1", "2", "3", "3.1", "3.2", "3.3", "4", "10", "5"],
+    "bge_73_II_6": ["3", "4", "5", "6"],
     "bvger_A-4843_2020": ["1.1", "1.2", "2", "2a", "3"],
 }
 
@@ -41,7 +43,8 @@ def make(path: Path) -> Path:
             PRIMARY KEY (decision_id, e_number)) WITHOUT ROWID;
     """)
     con.executemany("INSERT INTO meta VALUES (?,?)", [("schema_version", "2"), ("built_at", "2026-01-04T05:00:00+00:00"), ("db_generation", "fixture")])
-    con.executemany("INSERT INTO decisions (decision_id, court, canton, decision_date, docket_number, docket_number_2) VALUES (?,?,?,?,?,?)", DECISIONS)
+    con.executemany("INSERT INTO decisions (decision_id, court, canton, decision_date, docket_number, docket_number_2, canonical_decision_id) VALUES (?,?,?,?,?,?,?)",
+                    [(*d, d[0]) for d in DECISIONS])
     con.execute("INSERT INTO aliases VALUES ('4P_166/2006', 'bger_4C_230_2006')")
     for decision_id, numbers in PARAGRAPHS.items():
         con.executemany("INSERT INTO paragraphs VALUES (?,?,0,NULL,?)", [(decision_id, n, zlib.compress(b"x")) for n in numbers])

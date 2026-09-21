@@ -9,6 +9,9 @@ import * as word from './word.js';
 import { LANGUAGES, courtName, formatDate, formatNumber, language, setLanguage, t } from './i18n.js';
 
 const INDEX_BASE = new URL('../index/', import.meta.url).href;
+// Where a decision can be read. Used for links only: the pane never requests it; a
+// click opens the address in the user's browser, like any link in a document.
+const DECISION_BASE = 'https://mcp.opencaselaw.ch/entscheid/';
 const STATUSES = ['found', 'differs', 'missing', 'unchecked'];
 const $ = (id) => document.getElementById(id);
 
@@ -63,6 +66,18 @@ function label(row, written) {
   const collection = (/^(BGE|ATF|DTF)/.exec(written || '') || [])[1] || { fr: 'ATF', it: 'DTF' }[language()] || 'BGE';
   const part = { IA: 'Ia', IB: 'Ib' }[bge.part] || bge.part;
   return collection + ' ' + bge.volume + ' ' + part + ' ' + bge.page;
+}
+
+// A link to the decision, at the Erwägung when the list has it.
+function decisionLink(row, text, pinpoint) {
+  if (!row.id) return el('span', 'cite', text);
+  const a = el('a', 'cite', text);
+  const anchor = pinpoint && row.enums.includes(pinpoint) ? '#e-' + pinpoint.replace(/[^0-9a-z]+/g, '-') : '';
+  a.href = DECISION_BASE + row.id.split('/').map(encodeURIComponent).join('/') + anchor;
+  a.target = '_blank';
+  a.rel = 'noopener noreferrer';
+  a.title = t('open_decision');
+  return a;
 }
 
 const rowText = (row) => (row.date ? courtName(row) + ', ' + formatDate(row.date) : courtName(row));
@@ -204,13 +219,22 @@ function renderFinding(f) {
   context.append((f.context.before.length === 48 ? '… ' : '') + f.context.before, el('mark', null, f.text), f.context.after + (f.context.after.length === 48 ? ' …' : ''));
   body.append(el('p', 'place', placeText(f)), context);
   for (const sentence of said.slice(1)) body.append(el('p', 'say', sentence));
+  const readable = f.rows.filter((row) => row.id).slice(0, 3);
+  if (readable.length) {
+    const links = el('p', 'say open-links');
+    readable.forEach((row, i) => {
+      if (i) links.append(el('span', null, ', '));
+      links.append(decisionLink(row, readable.length > 1 ? t('open_decision') + ' (' + rowText(row) + ')' : t('open_decision'), f.parsed && f.parsed.pinpoint));
+    });
+    body.append(links);
+  }
 
   if (f.suggestions && f.suggestions.length) {
     body.append(el('p', 'sugg-title', t('similar')));
     const list = el('ul', 'sugg');
     for (const s of f.suggestions) {
       const li = el('li');
-      li.append(el('span', 'cite', label(s.row, f.text)), el('span', 'sugg-why', rowText(s.row)), el('span', 'sugg-why', suggestionText(f, s)));
+      li.append(decisionLink(s.row, label(s.row, f.text), f.parsed && f.parsed.pinpoint), el('span', 'sugg-why', rowText(s.row)), el('span', 'sugg-why', suggestionText(f, s)));
       list.append(li);
     }
     body.append(list);

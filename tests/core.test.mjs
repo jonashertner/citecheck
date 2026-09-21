@@ -103,6 +103,12 @@ test('missing BGE: the pinpoint page was written as the first page; wrong part',
   assert.ok(part.suggestions.some((s) => s.reason === 'other_part' && s.row.key === 'BGE 140 III 0115'));
 });
 
+test('early BGE volumes and year-only dates', () => {
+  const f = only('ATF 73 II 6 consid. 4');
+  assert.deepEqual([f.status, f.rows[0].date], ['found', '1947-01-01']);
+  assert.equal(only('BGE 73 II 6 E. 9').issues[0].kind, 'pinpoint');
+});
+
 test('pre-2007 and spaced spellings, aliases, the file number of a BGE', () => {
   assert.equal(only('Urteil 4C.230/2006').status, 'found');
   assert.equal(only('Urteil 4P.166/2006').status, 'found');
