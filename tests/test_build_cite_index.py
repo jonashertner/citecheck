@@ -68,3 +68,4 @@ def test_the_nightly_corpus_gives_the_same_list_as_the_pack(tmp_path):
     assert lines(tmp_path / "b", from_corpus) == lines(tmp_path / "a", from_pack)
     assert from_corpus["source"] == "OpenCaseLaw nightly corpus export"
     assert from_corpus["courts"] == from_pack["courts"]
+    assert "vd_gerichte" in from_corpus["courts"]        # the court missing from the export came from decisions.db

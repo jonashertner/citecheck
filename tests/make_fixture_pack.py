@@ -71,10 +71,15 @@ def make_corpus(directory: Path) -> tuple[Path, Path, Path]:
     for row in DECISIONS:
         by_court.setdefault(row[1], []).append(row)
     for court, rows in by_court.items():
+        if court == "vd_gerichte":
+            continue          # left out of the export, like the ECtHR collections; read from decisions.db instead
         table = pa.table({c: [r[i] for r in rows] for i, c in enumerate(cols)} | {"full_text": ["x" * 10] * len(rows)})
         pq.write_table(table, dataset / f"{court}.parquet")
     decisions_db = directory / "decisions.db"
     con = sqlite3.connect(decisions_db)
+    con.execute("CREATE TABLE decisions (decision_id TEXT PRIMARY KEY, court TEXT, canton TEXT, decision_date TEXT, docket_number TEXT, docket_number_2 TEXT, full_text TEXT)")
+    con.execute("CREATE INDEX idx_decisions_court ON decisions(court)")
+    con.executemany("INSERT INTO decisions VALUES (?,?,?,?,?,?,'x')", DECISIONS)
     con.execute("CREATE TABLE decision_docket_aliases (court TEXT, alias_docket TEXT, alias_docket_norm TEXT, canonical_decision_id TEXT, extraction_method TEXT)")
     con.execute("INSERT INTO decision_docket_aliases VALUES ('bger', '4P.166/2006', '4P_166/2006', 'bger_4C_230_2006', 'caption')")
     con.commit(); con.close()

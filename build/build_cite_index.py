@@ -128,10 +128,25 @@ class CorpusSource:
 
     def decisions(self):
         import pyarrow.parquet as pq  # noqa: WPS433  (only this source needs it)
+        seen: set[str] = set()
         for path in self.files:
             table = pq.read_table(path, columns=self._COLUMNS)
             for row in zip(*(table.column(c).to_pylist() for c in self._COLUMNS)):
+                seen.add(row[1] or "")
                 yield (*row, None)
+        # Courts the export leaves out (the ECtHR collections, 2026-09-22) are read from
+        # decisions.db by court: the court index finds them, no table scan.
+        con = sqlite3.connect(f"{self.decisions_db.resolve().as_uri()}?mode=ro&immutable=1", uri=True)
+        try:
+            courts = [r[0] for r in con.execute("SELECT DISTINCT court FROM decisions") if (r[0] or "") not in seen]
+            for court in courts:
+                for row in con.execute("SELECT decision_id, court, canton, decision_date, docket_number, docket_number_2 "
+                                       "FROM decisions WHERE court = ?", (court,)):
+                    yield (*row, None)
+        except sqlite3.OperationalError:
+            pass
+        finally:
+            con.close()
 
     def aliases(self):
         con = sqlite3.connect(f"{self.decisions_db.resolve().as_uri()}?mode=ro&immutable=1", uri=True)
