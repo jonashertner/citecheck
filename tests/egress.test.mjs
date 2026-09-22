@@ -20,6 +20,13 @@ test('the page carries the policy that confines it to its own origin', () => {
   for (const values of Object.values(directives)) for (const v of values) assert.ok(!/unsafe|\*/.test(v), v);
 });
 
+test('the install page loads nothing from elsewhere and runs no script', () => {
+  const page = read('index.html');
+  assert.ok(!/<script/i.test(page));
+  const foreign = [...page.matchAll(/(?:src|href)="(https?:\/\/[^"]+)"/g)].map((m) => m[1]);
+  assert.ok(foreign.every((u) => u.startsWith('https://github.com/jonashertner/citecheck')), foreign.join(' '));
+});
+
 test('the only foreign resource in the page is office.js', () => {
   const foreign = [...read('taskpane.html').matchAll(/(?:src|href)="(https?:\/\/[^"]+)"/g)].map((m) => m[1]);
   assert.deepEqual(foreign.filter((u) => u !== 'https://github.com/jonashertner/citecheck'), ['https://appsforoffice.microsoft.com/lib/1/hosted/office.js']);

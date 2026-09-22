@@ -56,6 +56,10 @@ The hosted copy is served from GitHub Pages at https://jonashertner.github.io/ci
 (the same files as this repository, plus the current cite list). A court that
 wants nothing to leave its network hosts the folder itself: [docs/deployment.md](docs/deployment.md).
 
+Testers without a command line: send them https://jonashertner.github.io/citecheck/ ,
+which has the file to download and the steps for Word on Windows, in the browser
+and on Mac (Windows and web: Insert, Add-ins, My Add-ins, Upload My Add-in).
+
 Word for Mac, for one user (then restart Word; Home, Add-ins, under "Developer Add-ins"):
 
 ```
