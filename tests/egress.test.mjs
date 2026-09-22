@@ -24,7 +24,9 @@ test('the install page loads nothing from elsewhere and runs no script', () => {
   const page = read('index.html');
   assert.ok(!/<script/i.test(page));
   const foreign = [...page.matchAll(/(?:src|href)="(https?:\/\/[^"]+)"/g)].map((m) => m[1]);
-  assert.ok(foreign.every((u) => u.startsWith('https://github.com/jonashertner/citecheck')), foreign.join(' '));
+  // Links the reader clicks: the repository, and the counted copy of the manifest.
+  const allowed = (u) => u.startsWith('https://github.com/jonashertner/citecheck') || u === 'https://mcp.opencaselaw.ch/citecheck/manifest.xml';
+  assert.ok(foreign.every(allowed), foreign.join(' '));
 });
 
 test('the only foreign resource in the page is office.js', () => {

@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+           xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
+           xsi:type="TaskPaneApp">
+  <Id>1173d2d2-867d-4c54-a5ef-151b502f8fbf</Id>
+  <Version>1.0.0.0</Version>
+  <ProviderName>OpenCaseLaw</ProviderName>
+  <DefaultLocale>de-CH</DefaultLocale>
+  <DisplayName DefaultValue="citecheck Zitatprüfung">
+    <Override Locale="fr-CH" Value="citecheck Contrôle des citations"/>
+    <Override Locale="it-CH" Value="citecheck Controllo delle citazioni"/>
+    <Override Locale="en-US" Value="citecheck"/>
+  </DisplayName>
+  <Description DefaultValue="Prüft die Verweise auf Entscheide im Entwurf gegen die Zitatliste von OpenCaseLaw. Der Entwurf verlässt das Gerät nicht.">
+    <Override Locale="fr-CH" Value="Contrôle les renvois à des décisions dans le projet à l'aide de la liste d'OpenCaseLaw. Le projet ne quitte pas l'appareil."/>
+    <Override Locale="it-CH" Value="Controlla i rinvii a decisioni nel progetto con la lista di OpenCaseLaw. Il progetto non lascia il dispositivo."/>
+    <Override Locale="en-US" Value="Checks the draft's references to decisions against the OpenCaseLaw cite list. The draft does not leave the device."/>
+  </Description>
+  <IconUrl DefaultValue="https://jonashertner.github.io/citecheck/assets/icon-32.png"/>
+  <HighResolutionIconUrl DefaultValue="https://jonashertner.github.io/citecheck/assets/icon-64.png"/>
+  <SupportUrl DefaultValue="https://github.com/jonashertner/citecheck"/>
+  <!-- No AppDomains: the task pane never navigates or connects beyond its own origin. -->
+  <Hosts>
+    <Host Name="Document"/>
+  </Hosts>
+  <Requirements>
+    <Sets>
+      <Set Name="WordApi" MinVersion="1.3"/>
+    </Sets>
+  </Requirements>
+  <DefaultSettings>
+    <SourceLocation DefaultValue="https://jonashertner.github.io/citecheck/taskpane.html"/>
+  </DefaultSettings>
+  <Permissions>ReadWriteDocument</Permissions>
+  <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
+    <Hosts>
+      <Host xsi:type="Document">
+        <DesktopFormFactor>
+          <ExtensionPoint xsi:type="PrimaryCommandSurface">
+            <OfficeTab id="TabReviewWord">
+              <Group id="Ocl.CiteCheck.Group">
+                <Label resid="Ocl.Group"/>
+                <Icon>
+                  <bt:Image size="16" resid="Ocl.Icon16"/>
+                  <bt:Image size="32" resid="Ocl.Icon32"/>
+                  <bt:Image size="80" resid="Ocl.Icon80"/>
+                </Icon>
+                <Control xsi:type="Button" id="Ocl.CiteCheck.Open">
+                  <Label resid="Ocl.Button"/>
+                  <Supertip>
+                    <Title resid="Ocl.Button"/>
+                    <Description resid="Ocl.Tip"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Ocl.Icon16"/>
+                    <bt:Image size="32" resid="Ocl.Icon32"/>
+                    <bt:Image size="80" resid="Ocl.Icon80"/>
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <TaskpaneId>Ocl.CiteCheck.Pane</TaskpaneId>
+                    <SourceLocation resid="Ocl.Pane"/>
+                  </Action>
+                </Control>
+              </Group>
+            </OfficeTab>
+          </ExtensionPoint>
+        </DesktopFormFactor>
+      </Host>
+    </Hosts>
+    <Resources>
+      <bt:Images>
+        <bt:Image id="Ocl.Icon16" DefaultValue="https://jonashertner.github.io/citecheck/assets/icon-16.png"/>
+        <bt:Image id="Ocl.Icon32" DefaultValue="https://jonashertner.github.io/citecheck/assets/icon-32.png"/>
+        <bt:Image id="Ocl.Icon80" DefaultValue="https://jonashertner.github.io/citecheck/assets/icon-80.png"/>
+      </bt:Images>
+      <bt:Urls>
+        <bt:Url id="Ocl.Pane" DefaultValue="https://jonashertner.github.io/citecheck/taskpane.html"/>
+      </bt:Urls>
+      <bt:ShortStrings>
+        <bt:String id="Ocl.Group" DefaultValue="OpenCaseLaw"/>
+        <bt:String id="Ocl.Button" DefaultValue="Zitate prüfen">
+          <bt:Override Locale="fr-CH" Value="Contrôler les citations"/>
+          <bt:Override Locale="it-CH" Value="Controllare le citazioni"/>
+          <bt:Override Locale="en-US" Value="Check cites"/>
+        </bt:String>
+      </bt:ShortStrings>
+      <bt:LongStrings>
+        <bt:String id="Ocl.Tip" DefaultValue="Vergleicht die Verweise auf Entscheide mit der Zitatliste. Der Entwurf bleibt auf diesem Gerät.">
+          <bt:Override Locale="fr-CH" Value="Compare les renvois à des décisions avec la liste. Le projet reste sur cet appareil."/>
+          <bt:Override Locale="it-CH" Value="Confronta i rinvii a decisioni con la lista. Il progetto resta su questo dispositivo."/>
+          <bt:Override Locale="en-US" Value="Compares the references to decisions with the cite list. The draft stays on this device."/>
+        </bt:String>
+      </bt:LongStrings>
+    </Resources>
+  </VersionOverrides>
+</OfficeApp>

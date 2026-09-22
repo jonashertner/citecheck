@@ -53,7 +53,10 @@ file that is the same for everyone; `tests/egress.test.mjs` pins all of this.
 ## Install
 
 The hosted copy is served from GitHub Pages at https://jonashertner.github.io/citecheck/
-(the same files as this repository, plus the current cite list). A court that
+(the same files as this repository, plus the current cite list). The manifest is
+also served from mcp.opencaselaw.ch, where downloads are counted
+(`build/nginx/`); it names the GitHub Pages address, so the add-in itself
+runs from there either way. A court that
 wants nothing to leave its network hosts the folder itself: [docs/deployment.md](docs/deployment.md).
 
 Testers without a command line: send them https://jonashertner.github.io/citecheck/ ,
@@ -64,7 +67,7 @@ Word for Mac, for one user (then restart Word; Home, Add-ins, under "Developer A
 
 ```
 mkdir -p ~/Library/Containers/com.microsoft.Word/Data/Documents/wef
-curl -fsSL https://jonashertner.github.io/citecheck/manifest.xml -o ~/Library/Containers/com.microsoft.Word/Data/Documents/wef/citecheck.xml
+curl -fsSL https://mcp.opencaselaw.ch/citecheck/manifest.xml -o ~/Library/Containers/com.microsoft.Word/Data/Documents/wef/citecheck.xml
 ```
 
 Word for Windows: download the same `manifest.xml` to a shared folder and add that
