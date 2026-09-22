@@ -144,12 +144,11 @@ python -m pytest tests   # the list builder
 
 ## State
 
-Version 0.1.0. Verified in headless Chromium: the pane, the list download and
+Version 0.1.0 (manifest 1.0.0.0, which Microsoft's validator requires). Verified in headless Chromium: the pane, the list download and
 cache, the checks, and that Microsoft's office.js loads under the policy without
 a violation. **Not yet run inside Word**: `js/word.js` follows the documented
 Word API but has not been
-exercised against a real document, and the manifest has not been through
-Microsoft's validator (`npx office-addin-manifest validate manifest.xml`).
-Both are the first steps of a pilot. Needs Microsoft 365 or Office 2021 and
+exercised against a real document, The manifest passes Microsoft's validator (`npx office-addin-manifest validate manifest.xml`).
+A run in Word is the first step of a pilot. Needs Microsoft 365 or Office 2021 and
 later (Windows: WebView2), or current Word for Mac; Office 2016/2019 volume
 licences embed an older browser and are not supported.

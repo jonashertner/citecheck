@@ -17,7 +17,7 @@ from urllib.parse import urlsplit
 from xml.sax.saxutils import quoteattr
 
 ADDIN_ID = "1173d2d2-867d-4c54-a5ef-151b502f8fbf"
-VERSION = "0.1.0.0"
+VERSION = "1.0.0.0"
 
 TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
 <OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
