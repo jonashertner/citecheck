@@ -1,0 +1,21 @@
+# Builds the citecheck cite list from the nightly corpus and uploads it to the
+# HuggingFace mirror. Install on the OpenCaseLaw host:
+#   git clone https://github.com/jonashertner/citecheck /opt/citecheck
+#   mkdir -p /var/lib/citecheck/index
+#   cp /opt/citecheck/build/systemd/citecheck-index.{service,timer} /etc/systemd/system/
+#   systemctl daemon-reload && systemctl enable --now citecheck-index.timer
+# Update: git -C /opt/citecheck pull
+[Unit]
+Description=citecheck: build the cite list from the nightly corpus and publish it
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/citecheck
+EnvironmentFile=/opt/caselaw/repo/.env.publish
+ExecStart=/usr/bin/python3 /opt/citecheck/build/publish_cite_index.py --repo-dir /opt/caselaw/repo --out /var/lib/citecheck/index --wait-hours 6
+Nice=19
+IOSchedulingClass=idle
+MemoryHigh=6G
+TimeoutStartSec=8h

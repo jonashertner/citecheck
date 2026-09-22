@@ -29,7 +29,7 @@ in a frame.
 `addin/index/` must hold `index.json` and the one `cite-index-<date>.tsv.gz` it
 names. Two ways:
 
-- **Mirror** the published list on a schedule (a cron job or scheduled task on
+- **Mirror** the published list (https://huggingface.co/datasets/voilaj/swiss-caselaw/tree/main/artifacts/cite_index, rebuilt nightly) on a schedule (a cron job or scheduled task on
   the server: download both files, verify the SHA-256 in `index.json` against
   the `.tsv.gz`, then move them into place, `index.json` last). The
   workstations then never contact anyone outside but Microsoft's script host.

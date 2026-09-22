@@ -1,10 +1,14 @@
 # Serves addin/ at https://jonashertner.github.io/citecheck/ together with the
-# current cite list. The list is not kept in git: it is the newest release tagged
-# list-<date> (index.json + cite-index-<date>.tsv.gz), verified before it is served.
+# current cite list. The list is not kept in git: build/publish_cite_index.py
+# uploads it nightly to the HuggingFace mirror (artifacts/cite_index/), and this
+# workflow fetches it, verifies the SHA-256 in index.json, and deploys. It runs
+# on push, daily after the nightly upload, and by hand.
 name: pages
 on:
   push:
     branches: [main]
+  schedule:
+    - cron: '30 19 * * *'
   workflow_dispatch:
 permissions:
   contents: read
@@ -22,16 +26,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Fetch and verify the cite list
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          tag=$(gh release list --limit 50 --json tagName -q '[.[].tagName | select(startswith("list-"))][0]')
-          test -n "$tag"
-          gh release download "$tag" --dir addin/index --pattern index.json --pattern 'cite-index-*.tsv.gz'
-          cd addin/index
+          base=https://huggingface.co/datasets/voilaj/swiss-caselaw/resolve/main/artifacts/cite_index
+          mkdir -p addin/index && cd addin/index
+          curl -fsSL "$base/index.json" -o index.json
           file=$(python3 -c "import json; print(json.load(open('index.json'))['file'])")
           want=$(python3 -c "import json; print(json.load(open('index.json'))['sha256'])")
+          curl -fsSL "$base/$file" -o "$file"
           echo "$want  $file" | sha256sum --check
+          python3 -c "import json; m=json.load(open('index.json')); print(m['file'], m['decisions'], 'decisions, generated', m['generated'])"
       - name: Manifest for this host
         run: python3 build/make_manifest.py --base-url https://jonashertner.github.io/citecheck/ --out addin/manifest.xml
       - uses: actions/configure-pages@v5

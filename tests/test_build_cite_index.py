@@ -1,6 +1,7 @@
 import gzip
 import hashlib
 import json
+import pytest
 import re
 import sys
 from pathlib import Path
@@ -54,3 +55,16 @@ def test_old_index_files_are_removed(tmp_path):
     b.build(pack, out, log=lambda m: None)
     names = sorted(p.name for p in out.iterdir())
     assert len(names) == 2 and names[1] == "index.json" and re.fullmatch(r"cite-index-2026-01-04-[0-9a-f]{8}\.tsv\.gz", names[0])
+
+
+def test_the_nightly_corpus_gives_the_same_list_as_the_pack(tmp_path):
+    pytest.importorskip("pyarrow")
+    from make_fixture_pack import make_corpus
+    pack = make(tmp_path / "pack.sqlite")
+    from_pack = b.build(pack, tmp_path / "a", log=lambda m: None)
+    dataset, decisions_db, structure_db = make_corpus(tmp_path / "corpus")
+    from_corpus = b.build(b.CorpusSource(dataset, decisions_db, structure_db), tmp_path / "b", log=lambda m: None)
+    lines = lambda d, m: gzip.decompress((d / m["file"]).read_bytes()).decode().splitlines()
+    assert lines(tmp_path / "b", from_corpus) == lines(tmp_path / "a", from_pack)
+    assert from_corpus["source"] == "OpenCaseLaw nightly corpus export"
+    assert from_corpus["courts"] == from_pack["courts"]

@@ -1,0 +1,11 @@
+[Unit]
+Description=citecheck: daily cite list, after the nightly pipeline
+
+[Timer]
+# The pipeline starts 03:30 UTC and ends around 17:00 UTC; the service waits
+# (up to 6 h) if it is still running.
+OnCalendar=*-*-* 17:30:00 UTC
+Persistent=false
+
+[Install]
+WantedBy=timers.target

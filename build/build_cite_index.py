@@ -3,9 +3,15 @@
 
     python build/build_cite_index.py --pack verification_pack.sqlite --out addin/index
 
-Input: the OpenCaseLaw verification pack (one SQLite file; `ocl pack pull`, or
-scripts/build_verification_pack.py in the OpenCaseLaw repository). It is opened
-read-only. Output, written to a temporary name and renamed:
+Input, one of two:
+  --pack            the OpenCaseLaw verification pack (one SQLite file, weekly;
+                    `ocl pack pull`), standard library only
+  --dataset-dir     the nightly corpus files of the OpenCaseLaw pipeline: the
+                    per-court Parquet export (needs pyarrow), decisions.db for
+                    the docket aliases and decision_structure.db for the
+                    Erwägung numbers; both databases are opened read-only and
+                    the reads use covering indexes only
+Output, written to a temporary name and renamed:
 
     cite-index-<date>-<hash>.tsv.gz   one line per (label, decision), sorted by label
     index.json                 manifest: date, counts, SHA-256, courts covered
@@ -69,14 +75,85 @@ def _natural(e_number: str):
     return [(0, int(t), "") if t.isdigit() else (1, 0, t) for t in re.findall(r"\d+|[a-z]+|[./]", e_number)]
 
 
+# ── sources ───────────────────────────────────────────────────────────────
+class PackSource:
+    """The verification pack: meta, paragraphs, decisions, aliases."""
+
+    def __init__(self, pack: Path):
+        self.con = sqlite3.connect(f"{pack.resolve().as_uri()}?mode=ro&immutable=1", uri=True)
+        self.meta = dict(self.con.execute("SELECT key, value FROM meta").fetchall())
+        self.generated = self.meta.get("built_at")
+        self.generation = self.meta.get("db_generation")
+        self.name = "OpenCaseLaw verification pack"
+
+    def enums(self):
+        return self.con.execute("SELECT decision_id, e_number FROM paragraphs")
+
+    def decisions(self):
+        return self.con.execute("SELECT decision_id, court, canton, decision_date, docket_number, docket_number_2, canonical_decision_id FROM decisions")
+
+    def aliases(self):
+        try:
+            return self.con.execute("SELECT alias_docket_norm, canonical_decision_id FROM aliases").fetchall()
+        except sqlite3.OperationalError:
+            return []
+
+    def close(self):
+        self.con.close()
+
+
+class CorpusSource:
+    """The nightly corpus: Parquet export + decisions.db aliases + decision_structure.db numbers."""
+
+    _COLUMNS = ["decision_id", "court", "canton", "decision_date", "docket_number", "docket_number_2"]
+
+    def __init__(self, dataset_dir: Path, decisions_db: Path, structure_db: Path):
+        self.files = sorted(p for p in dataset_dir.glob("*.parquet") if not p.name.startswith("."))
+        if not self.files:
+            raise FileNotFoundError(f"no *.parquet in {dataset_dir}")
+        self.decisions_db = decisions_db
+        self.structure_db = structure_db
+        newest = max(p.stat().st_mtime for p in self.files)
+        self.generated = datetime.fromtimestamp(newest, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        self.generation = str(int(newest))
+        self.name = "OpenCaseLaw nightly corpus export"
+
+    def enums(self):
+        con = sqlite3.connect(f"{self.structure_db.resolve().as_uri()}?mode=ro&immutable=1", uri=True)
+        try:
+            # (decision_id, e_number) is the primary key: the read is a covering-index scan.
+            yield from con.execute("SELECT decision_id, e_number FROM erwaegungen_paragraph")
+        finally:
+            con.close()
+
+    def decisions(self):
+        import pyarrow.parquet as pq  # noqa: WPS433  (only this source needs it)
+        for path in self.files:
+            table = pq.read_table(path, columns=self._COLUMNS)
+            for row in zip(*(table.column(c).to_pylist() for c in self._COLUMNS)):
+                yield (*row, None)
+
+    def aliases(self):
+        con = sqlite3.connect(f"{self.decisions_db.resolve().as_uri()}?mode=ro&immutable=1", uri=True)
+        try:
+            return con.execute("SELECT alias_docket_norm, canonical_decision_id FROM decision_docket_aliases").fetchall()
+        except sqlite3.OperationalError:
+            return []
+        finally:
+            con.close()
+
+    def close(self):
+        pass
+
+
 # ── build ─────────────────────────────────────────────────────────────────
-def build(pack: Path, out_dir: Path, *, sample: bool = False, log=lambda m: print(m, file=sys.stderr, flush=True)) -> dict:
-    con = sqlite3.connect(f"{pack.resolve().as_uri()}?mode=ro&immutable=1", uri=True)
-    meta = dict(con.execute("SELECT key, value FROM meta").fetchall())
+def build(source, out_dir: Path, *, sample: bool = False, log=lambda m: print(m, file=sys.stderr, flush=True)) -> dict:
+    if isinstance(source, Path):
+        source = PackSource(source)
 
     log("reading Erwägung numbers")
     enums: dict[str, list[str]] = {}
-    for decision_id, e_number in con.execute("SELECT decision_id, e_number FROM paragraphs"):
+    for decision_id, e_number in source.enums():
         e = (e_number or "").strip().lower()
         if _ENUM.match(e):
             enums.setdefault(decision_id, []).append(e)
@@ -90,8 +167,7 @@ def build(pack: Path, out_dir: Path, *, sample: bool = False, log=lambda m: prin
         line = lines.setdefault((key, court, canton, date), {"enums": set(), "id": canonical or decision_id})
         line["enums"].update(enums.get(decision_id, ()))
 
-    for decision_id, court, canton, date, d1, d2, canonical in con.execute(
-            "SELECT decision_id, court, canton, decision_date, docket_number, docket_number_2, canonical_decision_id FROM decisions"):
+    for decision_id, court, canton, date, d1, d2, canonical in source.decisions():
         court, canton, date = court or "", canton or "", (date or "")[:10]
         decisions[decision_id] = (court, canton, date, canonical)
         c = courts.setdefault(court, {"canton": canton, "decisions": 0, "with_numbering": 0, "first": None, "last": None})
@@ -106,17 +182,13 @@ def build(pack: Path, out_dir: Path, *, sample: bool = False, log=lambda m: prin
                 add(key, court, canton, date, decision_id, canonical)
 
     log("reading docket aliases")
-    try:
-        aliases = con.execute("SELECT alias_docket_norm, canonical_decision_id FROM aliases").fetchall()
-    except sqlite3.OperationalError:
-        aliases = []
-    for alias, decision_id in aliases:
+    for alias, decision_id in source.aliases():
         if decision_id in decisions:
             court, canton, date, canonical = decisions[decision_id]
             key = key_for(court, (alias or "").replace("_", " "))
             if key:
                 add(key, court, canton, date, decision_id, canonical)
-    con.close()
+    source.close()
 
     log(f"sorting {len(lines):,} lines")
     ordered = sorted(lines.items(), key=lambda kv: (kv[0][0].encode("utf-8"), kv[0][1:]))
@@ -124,7 +196,7 @@ def build(pack: Path, out_dir: Path, *, sample: bool = False, log=lambda m: prin
     body = "\n".join([HEADER] + ["\t".join((*k, ",".join(sorted(v["enums"], key=_natural)), clean(v["id"]))) for k, v in ordered]) + "\n"
     raw = body.encode("utf-8")
 
-    generated = meta.get("built_at") or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    generated = source.generated or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     out_dir.mkdir(parents=True, exist_ok=True)
     tmp = out_dir / "cite-index.tsv.gz.tmp"
     with open(tmp, "wb") as fh, gzip.GzipFile(filename="", mode="wb", fileobj=fh, compresslevel=9, mtime=0) as gz:
@@ -137,10 +209,10 @@ def build(pack: Path, out_dir: Path, *, sample: bool = False, log=lambda m: prin
 
     manifest = {
         "schema": SCHEMA, "file": name, "bytes": len(blob), "sha256": hashlib.sha256(blob).hexdigest(),
-        "unpacked_bytes": len(raw), "generated": generated, "pack_generation": meta.get("db_generation"),
+        "unpacked_bytes": len(raw), "generated": generated, "pack_generation": source.generation,
         "decisions": len(decisions), "labels": len(ordered),
         "with_numbering": sum(1 for d in decisions if d in enums),
-        "source": "OpenCaseLaw verification pack", "licence": "CC0-1.0",
+        "source": source.name, "licence": "CC0-1.0",
         "courts": {k: courts[k] for k in sorted(courts)},
     }
     # A whole range of BGE volumes keyed wrongly is invisible in the totals (the first
@@ -165,14 +237,27 @@ def build(pack: Path, out_dir: Path, *, sample: bool = False, log=lambda m: prin
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--pack", required=True, type=Path, help="verification_pack.sqlite")
+    ap.add_argument("--pack", type=Path, help="verification_pack.sqlite (weekly)")
+    ap.add_argument("--dataset-dir", type=Path, help="directory of the per-court Parquet export (nightly)")
+    ap.add_argument("--decisions-db", type=Path, help="decisions.db, for the docket aliases (with --dataset-dir)")
+    ap.add_argument("--structure-db", type=Path, help="decision_structure.db, for the Erwägung numbers (with --dataset-dir)")
     ap.add_argument("--out", required=True, type=Path, help="directory served as <add-in>/index/")
     ap.add_argument("--sample", action="store_true", help="mark the list as a sample (test data); the add-in warns")
     args = ap.parse_args(argv)
-    if not args.pack.is_file():
-        print(f"no such pack: {args.pack}", file=sys.stderr)
-        return 2
-    build(args.pack, args.out, sample=args.sample)
+    if args.pack:
+        if not args.pack.is_file():
+            print(f"no such pack: {args.pack}", file=sys.stderr)
+            return 2
+        source = PackSource(args.pack)
+    elif args.dataset_dir and args.decisions_db and args.structure_db:
+        for path in (args.dataset_dir, args.decisions_db, args.structure_db):
+            if not path.exists():
+                print(f"no such path: {path}", file=sys.stderr)
+                return 2
+        source = CorpusSource(args.dataset_dir, args.decisions_db, args.structure_db)
+    else:
+        ap.error("give --pack, or --dataset-dir with --decisions-db and --structure-db")
+    build(source, args.out, sample=args.sample)
     return 0
 
 

@@ -56,3 +56,32 @@ def make(path: Path) -> Path:
 if __name__ == "__main__":
     import sys
     make(Path(sys.argv[1]))
+
+
+def make_corpus(directory: Path) -> tuple[Path, Path, Path]:
+    """The same invented decisions as the nightly corpus files: per-court Parquet,
+    decisions.db with the docket aliases, decision_structure.db with the numbers."""
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    directory.mkdir(parents=True, exist_ok=True)
+    dataset = directory / "dataset"
+    dataset.mkdir(exist_ok=True)
+    cols = ["decision_id", "court", "canton", "decision_date", "docket_number", "docket_number_2"]
+    by_court: dict[str, list] = {}
+    for row in DECISIONS:
+        by_court.setdefault(row[1], []).append(row)
+    for court, rows in by_court.items():
+        table = pa.table({c: [r[i] for r in rows] for i, c in enumerate(cols)} | {"full_text": ["x" * 10] * len(rows)})
+        pq.write_table(table, dataset / f"{court}.parquet")
+    decisions_db = directory / "decisions.db"
+    con = sqlite3.connect(decisions_db)
+    con.execute("CREATE TABLE decision_docket_aliases (court TEXT, alias_docket TEXT, alias_docket_norm TEXT, canonical_decision_id TEXT, extraction_method TEXT)")
+    con.execute("INSERT INTO decision_docket_aliases VALUES ('bger', '4P.166/2006', '4P_166/2006', 'bger_4C_230_2006', 'caption')")
+    con.commit(); con.close()
+    structure_db = directory / "decision_structure.db"
+    con = sqlite3.connect(structure_db)
+    con.execute("CREATE TABLE erwaegungen_paragraph (decision_id TEXT, e_number TEXT, depth INTEGER, parent TEXT, text TEXT, PRIMARY KEY (decision_id, e_number))")
+    for decision_id, numbers in PARAGRAPHS.items():
+        con.executemany("INSERT INTO erwaegungen_paragraph VALUES (?,?,0,NULL,'x')", [(decision_id, n) for n in numbers])
+    con.commit(); con.close()
+    return dataset, decisions_db, structure_db

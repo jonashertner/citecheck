@@ -126,7 +126,17 @@ Build it from the OpenCaseLaw verification pack (`ocl pack pull`, about 8 GB):
 python build/build_cite_index.py --pack verification_pack.sqlite --out addin/index
 ```
 
-The output is byte-for-byte reproducible from the pack.
+or, on the OpenCaseLaw host, from the nightly corpus files (Parquet export,
+decisions.db, decision_structure.db; needs pyarrow):
+
+```
+python build/build_cite_index.py --dataset-dir output/dataset --decisions-db output/decisions.db --structure-db output/decision_structure.db --out index
+```
+
+Both give the same list for the same corpus state; the output is byte-for-byte
+reproducible. The hosted list is rebuilt every night by
+`build/publish_cite_index.py` (systemd units in `build/systemd/`), uploaded to
+the HuggingFace mirror and picked up by the Pages workflow.
 
 ## Try it without Word
 
