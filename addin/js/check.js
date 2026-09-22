@@ -173,6 +173,12 @@ function checkOne(index, parsed) {
   return result;
 }
 
+function occurrencesBefore(text, needle, position) {
+  let n = 0;
+  for (let at = text.indexOf(needle); at >= 0 && at < position; at = text.indexOf(needle, at + needle.length)) n++;
+  return n;
+}
+
 // paragraphs: [{text, where}] in reading order; `where` is opaque to this module.
 // Returns {findings, counts, paragraphs}; a finding carries its place in the
 // document (paragraph, start, end, position 0..1) and the check result.
@@ -201,16 +207,15 @@ export function checkDocument(paragraphs, index) {
   }
 
   findings.sort((a, b) => a.paragraph - b.paragraph || a.start - b.start);
-  const nth = new Map();
   findings.forEach((f, i) => {
     f.id = i;
     f.where = paragraphs[f.paragraph].where;
     f.position = (offsets[f.paragraph] + f.start) / total;
-    // Which occurrence of the written text within its paragraph, for selection.
-    const k = f.paragraph + '\u0000' + f.text;
-    f.nth = nth.get(k) || 0;
-    nth.set(k, f.nth + 1);
     const text = texts[f.paragraph];
+    // Which of Word's search hits for the written text this finding is: every earlier,
+    // non-overlapping occurrence counts, including one inside a longer reference
+    // ("BGE 140 III 115" inside "BGE 140 III 115 E. 6.4.1" before it stands alone).
+    f.nth = occurrencesBefore(text, f.text, f.start);
     f.context = { before: text.slice(Math.max(0, f.start - 48), f.start), after: text.slice(f.end, f.end + 48) };
   });
   const counts = { found: 0, differs: 0, missing: 0, unchecked: 0 };

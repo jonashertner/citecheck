@@ -150,9 +150,11 @@ python -m pytest tests   # the list builder
 
 Version 0.1.0 (manifest 1.0.0.0, which Microsoft's validator requires). Verified in headless Chromium: the pane, the list download and
 cache, the checks, and that Microsoft's office.js loads under the policy without
-a violation. **Not yet run inside Word**: `js/word.js` follows the documented
-Word API but has not been
-exercised against a real document, The manifest passes Microsoft's validator (`npx office-addin-manifest validate manifest.xml`).
-A run in Word is the first step of a pilot. Needs Microsoft 365 or Office 2021 and
+a violation. Run inside Word for Mac 16.113 (Microsoft 365) on 2026-09-22 against a real
+document with a native footnote: reading, selecting each occurrence, footnotes,
+comments, links, language switch and the cached list all verified; two defects
+found there (the second occurrence of a repeated reference selected the first;
+the link to E. 3 lacked its anchor when the list holds 3.1 but no 3) are fixed.
+The manifest passes Microsoft's validator. Not yet run on Windows. Needs Microsoft 365 or Office 2021 and
 later (Windows: WebView2), or current Word for Mac; Office 2016/2019 volume
 licences embed an older browser and are not supported.

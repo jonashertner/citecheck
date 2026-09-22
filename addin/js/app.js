@@ -72,7 +72,10 @@ function label(row, written) {
 function decisionLink(row, text, pinpoint) {
   if (!row.id) return el('span', 'cite', text);
   const a = el('a', 'cite', text);
-  const anchor = pinpoint && row.enums.includes(pinpoint) ? '#e-' + pinpoint.replace(/[^0-9a-z]+/g, '-') : '';
+  // The cited number, or the first listed number below it (E. 3 when the list has 3.1, 3.2
+  // and no line for 3 itself), the rule the check applies; none when neither is listed.
+  const target = pinpoint && (row.enums.includes(pinpoint) ? pinpoint : row.enums.find((e) => e.startsWith(pinpoint) && /^[.a-z/]/.test(e.slice(pinpoint.length))));
+  const anchor = target ? '#e-' + target.replace(/[^0-9a-z]+/g, '-') : '';
   a.href = DECISION_BASE + row.id.split('/').map(encodeURIComponent).join('/') + anchor;
   a.target = '_blank';
   a.rel = 'noopener noreferrer';
@@ -216,7 +219,8 @@ function renderFinding(f) {
 
   const body = el('div', 'f-body');
   const context = el('p', 'ctx');
-  context.append((f.context.before.length === 48 ? '… ' : '') + f.context.before, el('mark', null, f.text), f.context.after + (f.context.after.length === 48 ? ' …' : ''));
+  const clean = (s) => s.replace(/[\u0000-\u0008\u000b-\u001f]/g, '');   // Word's footnote and comment marks
+  context.append((f.context.before.length === 48 ? '… ' : '') + clean(f.context.before), el('mark', null, f.text), clean(f.context.after) + (f.context.after.length === 48 ? ' …' : ''));
   body.append(el('p', 'place', placeText(f)), context);
   for (const sentence of said.slice(1)) body.append(el('p', 'say', sentence));
   const readable = f.rows.filter((row) => row.id).slice(0, 3);

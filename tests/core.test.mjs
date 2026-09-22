@@ -139,6 +139,11 @@ test('pinpoint notes: lettered below an indexed parent, no numbering at all', ()
   assert.deepEqual([none.status, none.notes[0].kind], ['found', 'pinpoint_no_structure']);
 });
 
+test('nth counts every earlier occurrence, also one inside a longer reference (Word bug 2026-09-22)', () => {
+  const r = check('Vgl. BGE 140 III 115 E. 2.3 S. 118; gilt dies; vgl. nochmals BGE 140 III 115.');
+  assert.deepEqual(r.findings.map((f) => [f.text, f.nth]), [['BGE 140 III 115 E. 2.3 S. 118', 0], ['BGE 140 III 115', 1]]);
+});
+
 test('every occurrence is placed; repeated text gets its own nth', () => {
   const r = check('BGE 140 III 115 und nochmals BGE 140 III 115.', 'Kein Zitat.', 'Urteil 9C_1/2020');
   assert.deepEqual(r.findings.map((f) => [f.paragraph, f.nth]), [[0, 0], [0, 1], [2, 0]]);
