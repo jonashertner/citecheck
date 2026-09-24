@@ -61,7 +61,8 @@ wants nothing to leave its network hosts the folder itself: [docs/deployment.md]
 
 Testers without a command line: send them https://jonashertner.github.io/citecheck/ ,
 which has the file to download and the steps for Word on Windows, in the browser
-and on Mac (Windows and web: Insert, Add-ins, My Add-ins, Upload My Add-in).
+and on Mac (web: Insert, Add-ins, My Add-ins, Manage My Add-ins, Upload My Add-in;
+Windows: a shared folder added as a trusted add-in catalog, see below).
 
 Word for Mac, for one user (then restart Word; Home, Add-ins, under "Developer Add-ins"):
 

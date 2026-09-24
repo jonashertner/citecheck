@@ -33,25 +33,27 @@
 
     <h2>Installation in Word</h2>
     <p><a class="download" href="https://mcp.opencaselaw.ch/citecheck/manifest.xml" download="citecheck-manifest.xml">Add-in-Datei herunterladen</a></p>
-    <p>Die Datei <code>citecheck-manifest.xml</code> ist 5 KB gross und enthält nur die Adresse des Add-ins. Sie wird einmal in Word hochgeladen.</p>
+    <p>Die Datei <code>citecheck-manifest.xml</code> ist 5 KB gross und enthält nur die Adresse des Add-ins. Sie wird einmal in Word eingebunden.</p>
 
     <div class="box">
       <p><strong>Word für Windows</strong> (Microsoft 365 oder Office 2021 und neuer)</p>
+      <p>Aus einer Datei installiert Word für Windows ein Add-in nur über einen freigegebenen Ordner (etwa fünf Minuten). Schneller: dieselbe Datei in Word im Browser (nächster Abschnitt), oder das Fenster ohne Word (siehe Verwendung).</p>
       <ol>
-        <li>Word öffnen, Menüband <kbd>Einfügen</kbd> (Insert), dann <kbd>Add-ins</kbd> oder <kbd>Add-ins abrufen</kbd>.</li>
-        <li>Im Fenster «Office-Add-Ins» oben auf <kbd>Meine Add-Ins</kbd>, dann rechts auf <kbd>Mein Add-In hochladen</kbd>.</li>
-        <li>Die heruntergeladene Datei <code>citecheck-manifest.xml</code> wählen, <kbd>Hochladen</kbd>.</li>
-        <li>Das Fenster «Zitatprüfung» öffnet sich rechts. Später: Menüband <kbd>Überprüfen</kbd> (Review), Schaltfläche <kbd>Zitate prüfen</kbd>.</li>
+        <li>Einen Ordner anlegen, zum Beispiel <code>C:\citecheck</code>, und die Datei hineinlegen. Rechtsklick auf den Ordner, <kbd>Eigenschaften</kbd>, Registerkarte <kbd>Freigabe</kbd>, <kbd>Freigeben</kbd>, <kbd>Freigeben</kbd>. Den angezeigten Netzwerkpfad notieren, zum Beispiel <code>\\IHR-PC\citecheck</code>.</li>
+        <li>In Word: <kbd>Datei</kbd>, <kbd>Optionen</kbd>, <kbd>Trust Center</kbd>, <kbd>Einstellungen für das Trust Center</kbd>, <kbd>Kataloge vertrauenswürdiger Add-Ins</kbd>. Den Netzwerkpfad bei «Katalog-URL» einfügen, <kbd>Katalog hinzufügen</kbd>, «Im Menü anzeigen» ankreuzen, zweimal <kbd>OK</kbd>. Word neu starten.</li>
+        <li><kbd>Start</kbd>, <kbd>Add-Ins</kbd>, <kbd>Erweitert</kbd> (ältere Versionen: <kbd>Einfügen</kbd>, <kbd>Meine Add-Ins</kbd>). Registerkarte «Freigegebener Ordner», citecheck wählen, <kbd>Hinzufügen</kbd>.</li>
+        <li>Das Fenster «Zitatprüfung» öffnet sich rechts. Später: Menüband <kbd>Überprüfen</kbd> (Review), Schaltfläche <kbd>Zitate prüfen</kbd> (englisches Word: Check cites).</li>
       </ol>
-      <p>Fehlt «Mein Add-In hochladen», hat die Organisation das Laden eigener Add-ins gesperrt. Dann kann die IT das Add-in über das Microsoft 365 Admin Center (Integrierte Apps, «Benutzerdefinierte App hochladen») für die gewünschten Personen freigeben; die Datei ist dieselbe.</p>
+      <p>Manche Microsoft-365-Versionen zeigen unter <kbd>Meine Add-Ins</kbd> auch <kbd>Mein Add-In hochladen</kbd>; dann die Datei dort hochladen, das geht schneller. Ist das Freigeben von Ordnern nicht erlaubt, kann die IT das Add-in über das Microsoft 365 Admin Center (Integrierte Apps, «Benutzerdefinierte App hochladen») für die gewünschten Personen freigeben; die Datei ist dieselbe.</p>
     </div>
 
     <div class="box">
       <p><strong>Word im Browser</strong> (office.com)</p>
       <ol>
-        <li>Dokument öffnen, <kbd>Einfügen</kbd>, <kbd>Add-ins</kbd>, <kbd>Weitere Add-Ins</kbd>.</li>
-        <li><kbd>Meine Add-Ins</kbd>, <kbd>Mein Add-In hochladen</kbd>, die Datei wählen.</li>
+        <li>Dokument öffnen, <kbd>Einfügen</kbd>, <kbd>Add-Ins</kbd> (neuere Versionen: <kbd>Start</kbd>, <kbd>Add-Ins</kbd>, <kbd>Weitere Einstellungen</kbd>).</li>
+        <li><kbd>Meine Add-Ins</kbd>, <kbd>Meine Add-Ins verwalten</kbd>, <kbd>Mein Add-In hochladen</kbd>, die Datei wählen, <kbd>Hochladen</kbd>.</li>
       </ol>
+      <p>Word im Browser merkt sich das Add-in nur in diesem Browser. In einem anderen Browser oder nach dem Löschen der Browserdaten die Datei erneut hochladen.</p>
     </div>
 
     <div class="box">
@@ -82,7 +84,7 @@
     <h2>Rückmeldungen</h2>
     <p>Bitte den Verweis, wie er im Entwurf steht, und die Meldung des Add-ins senden. Fehlerberichte auch als <a href="https://github.com/jonashertner/citecheck/issues">Issue auf GitHub</a>. Stand: Testversion 0.1, September 2026.</p>
 
-    <p class="en">English: citecheck is a Word add-in that checks a draft's references to Swiss court decisions against the OpenCaseLaw cite list, inside Word, without the draft leaving the device. Install: download the add-in file above, then in Word: Insert, Add-ins, My Add-ins, Upload My Add-in. Details in the <a href="https://github.com/jonashertner/citecheck#readme">README</a>.</p>
+    <p class="en">English: citecheck is a Word add-in that checks a draft's references to Swiss court decisions against the OpenCaseLaw cite list, inside Word, without the draft leaving the device. Install: download the add-in file above. Word in the browser: Insert, Add-ins, My Add-ins, Manage My Add-ins, Upload My Add-in. Word for Windows: put the file in a shared folder and add that folder under File, Options, Trust Center, Trusted Add-in Catalogs (some Microsoft 365 versions also offer Upload My Add-in). Word for Mac: put the file in ~/Library/Containers/com.microsoft.Word/Data/Documents/wef and restart Word. In English Word the button is Review, Check cites. Details in the <a href="https://github.com/jonashertner/citecheck#readme">README</a>.</p>
   </main>
 </body>
 </html>
