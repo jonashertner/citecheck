@@ -9,6 +9,9 @@
 Description=citecheck: build the cite list from the nightly corpus and publish it
 After=network-online.target
 Wants=network-online.target
+# Any failure (1) or a pipeline that never finished within --wait-hours (2)
+# pushes the host's usual ntfy alert.
+OnFailure=ntfy-alert@%n.service
 
 [Service]
 Type=oneshot
