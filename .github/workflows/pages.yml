@@ -2,13 +2,14 @@
 # current cite list. The list is not kept in git: build/publish_cite_index.py
 # uploads it nightly to the HuggingFace mirror (artifacts/cite_index/), and this
 # workflow fetches it, verifies the SHA-256 in index.json, and deploys. It runs
-# on push, daily after the nightly upload, and by hand.
+# on push, every two hours (the upload lands between 17:30 and 23:35 UTC,
+# depending on when the pipeline ends), and by hand.
 name: pages
 on:
   push:
     branches: [main]
   schedule:
-    - cron: '30 19 * * *'
+    - cron: '45 */2 * * *'
   workflow_dispatch:
 permissions:
   contents: read

@@ -67,7 +67,7 @@ Word for Mac, for one user (then restart Word; Home, Add-ins, under "Developer A
 
 ```
 mkdir -p ~/Library/Containers/com.microsoft.Word/Data/Documents/wef
-curl -fsSL https://jonashertner.github.io/citecheck/manifest.xml -o ~/Library/Containers/com.microsoft.Word/Data/Documents/wef/citecheck.xml
+curl -fsSL https://mcp.opencaselaw.ch/citecheck/manifest.xml -o ~/Library/Containers/com.microsoft.Word/Data/Documents/wef/citecheck.xml
 ```
 
 Word for Windows: download the same `manifest.xml` to a shared folder and add that
