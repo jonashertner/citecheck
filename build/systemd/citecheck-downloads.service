@@ -1,0 +1,18 @@
+# Appends yesterday's manifest downloads to /var/lib/citecheck/downloads.tsv
+# before logrotate removes the nginx log (the host keeps about four days).
+# Install on the OpenCaseLaw host:
+#   mkdir -p /etc/citecheck /var/lib/citecheck
+#   echo '<our own test address>' > /etc/citecheck/exclude-addrs
+#   cp /opt/citecheck/build/systemd/citecheck-downloads.{service,timer} /etc/systemd/system/
+#   systemctl daemon-reload && systemctl enable --now citecheck-downloads.timer
+# Read: column -t /var/lib/citecheck/downloads.tsv
+[Unit]
+Description=citecheck: record daily manifest downloads from the nginx log
+OnFailure=ntfy-alert@%n.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh /opt/citecheck/build/nginx/count_downloads.sh --record /var/lib/citecheck/downloads.tsv
+Nice=19
+IOSchedulingClass=idle
+TimeoutStartSec=15min

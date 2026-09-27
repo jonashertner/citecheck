@@ -1,0 +1,11 @@
+[Unit]
+Description=citecheck: record daily manifest downloads
+
+[Timer]
+# Any time of day works: the log covers about four days and each run fills in
+# every complete day not yet recorded, so a missed run loses nothing.
+OnCalendar=*-*-* 06:15:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

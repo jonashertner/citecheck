@@ -54,8 +54,10 @@ file that is the same for everyone; `tests/egress.test.mjs` pins all of this.
 
 The hosted copy is served from GitHub Pages at https://jonashertner.github.io/citecheck/
 (the same files as this repository, plus the current cite list). The manifest is
-also served from mcp.opencaselaw.ch, where downloads are counted
-(`build/nginx/`); it names the GitHub Pages address, so the add-in itself
+also served from mcp.opencaselaw.ch, where downloads are counted per day
+from the web server log and kept in a small daily record (`build/nginx/`,
+`build/systemd/citecheck-downloads.*`); only the date, a count and a count of
+distinct addresses are kept. It names the GitHub Pages address, so the add-in itself
 runs from there either way. A court that
 wants nothing to leave its network hosts the folder itself: [docs/deployment.md](docs/deployment.md).
 
