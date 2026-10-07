@@ -1,0 +1,10 @@
+[Unit]
+Description=citecheck: daily check that the served cite list is current
+
+[Timer]
+# After the latest build window (02:30 UTC) and the Pages runs that follow it.
+OnCalendar=*-*-* 07:00:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

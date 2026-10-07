@@ -2,8 +2,10 @@
 # current cite list. The list is not kept in git: build/publish_cite_index.py
 # uploads it nightly to the HuggingFace mirror (artifacts/cite_index/), and this
 # workflow fetches it, verifies the SHA-256 in index.json, and deploys. It runs
-# on push, every two hours (the upload lands between 17:30 and 23:35 UTC,
-# depending on when the pipeline ends), and by hand.
+# on push, every two hours (the upload lands between 17:30 and 02:35 UTC,
+# depending on when the pipeline ends), and by hand. A newer run replaces one
+# still waiting: every run deploys the whole current state, and a run that never
+# got a runner (October 2026) otherwise held the group and blocked every deploy.
 name: pages
 on:
   push:
@@ -17,7 +19,7 @@ permissions:
   id-token: write
 concurrency:
   group: pages
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   deploy:
     runs-on: ubuntu-latest

@@ -1,0 +1,16 @@
+# Alerts when the cite list the pane loads is stale: the nightly build stopped,
+# or the Pages deploy stopped. Reads two public URLs, nothing else. Install on
+# the OpenCaseLaw host:
+#   cp /opt/citecheck/build/systemd/citecheck-freshness.{service,timer} /etc/systemd/system/
+#   systemctl daemon-reload && systemctl enable --now citecheck-freshness.timer
+# Read: journalctl -u citecheck-freshness.service
+[Unit]
+Description=citecheck: check that the served cite list is current
+After=network-online.target
+Wants=network-online.target
+OnFailure=ntfy-alert@%n.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/citecheck/build/check_live_list.py
+TimeoutStartSec=5min
