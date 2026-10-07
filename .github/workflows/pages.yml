@@ -27,7 +27,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Fetch and verify the cite list
         run: |
           base=https://huggingface.co/datasets/voilaj/swiss-caselaw/resolve/main/artifacts/cite_index
@@ -40,9 +40,9 @@ jobs:
           python3 -c "import json; m=json.load(open('index.json')); print(m['file'], m['decisions'], 'decisions, generated', m['generated'])"
       - name: Manifest for this host
         run: python3 build/make_manifest.py --base-url https://jonashertner.github.io/citecheck/ --out addin/manifest.xml
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: addin
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
