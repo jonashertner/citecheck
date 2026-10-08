@@ -11,29 +11,43 @@
   <style>
     .page { max-width: 40em; margin: 0 auto; padding: 32px 20px 48px; }
     .page h1 { font-size: 24px; margin-bottom: 4px; }
-    .lead { color: var(--muted); font-size: 15px; margin-bottom: 28px; }
+    .lead { color: var(--muted); font-size: 15px; margin-bottom: 20px; }
     .page h2 { font: 600 17px/1.3 var(--sans); margin: 30px 0 8px; }
-    .page p { margin: 8px 0; font-size: 14px; }
+    .page p { margin: 8px 0; font-size: 14px; overflow-wrap: anywhere; }
     .page ol { list-style: decimal; padding-left: 1.4em; margin: 8px 0; font-size: 14px; }
     .page li { margin: 5px 0; }
     .page a { color: var(--action); }
-    .download { display: inline-block; padding: 9px 14px; margin: 6px 0 4px; border-radius: 4px; background: var(--action); color: var(--action-ink); font-weight: 600; text-decoration: none; }
-    .download:hover { opacity: 0.92; }
+    .page a.download { display: inline-block; padding: 9px 14px; margin: 6px 0 4px; border-radius: 4px; background: var(--action); color: var(--action-ink); font-weight: 600; text-decoration: none; }
+    .page a.download:hover { opacity: 0.92; }
     kbd { font: inherit; font-weight: 600; }
     code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; background: var(--paper); border: 1px solid var(--rule); border-radius: 3px; padding: 1px 4px; overflow-wrap: anywhere; }
     .box { border: 1px solid var(--rule-strong); border-radius: 4px; padding: 12px 14px; background: var(--paper); margin: 12px 0; }
     .shot { display: block; max-width: 320px; width: 100%; border: 1px solid var(--rule); border-radius: 4px; margin: 14px 0; }
     .en { border-top: 1px solid var(--rule); margin-top: 40px; padding-top: 18px; color: var(--muted); }
+    .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 0 0 28px; }
+    .checks > div { border-top: 2px solid var(--ink); padding-top: 8px; }
+    .checks p { margin: 4px 0; font-size: 14px; }
+    .check-name { font-weight: 600; }
+    .tag { font-weight: 600; font-size: 11px; color: var(--differs); border: 1px solid var(--differs); border-radius: 999px; padding: 0 6px; margin-left: 4px; vertical-align: 1px; }
+    .page h3 { font: 600 15px/1.3 var(--sans); margin: 22px 0 6px; }
+    .figures { width: 100%; border-collapse: collapse; font-size: 13px; margin: 10px 0; }
+    .figures td { border-bottom: 1px solid var(--rule); padding: 5px 4px; vertical-align: top; }
+    .figures td:last-child { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: 600; }
+    @media (max-width: 560px) { .checks { grid-template-columns: 1fr; margin-top: 0; } }
   </style>
 </head>
 <body>
   <main class="page">
     <h1>citecheck</h1>
-    <p class="lead">Prüft die Verweise auf Gerichtsentscheide in einem Entwurf: Gibt es den Entscheid, gibt es die zitierte Erwägung, stimmen Seite und Datum. Direkt in Word, ohne dass der Entwurf das Gerät verlässt.</p>
+    <p class="lead">Zwei Prüfungen für Gerichtsentscheide, direkt in Word, ohne dass das Dokument das Gerät verlässt.</p>
+    <div class="checks">
+      <div><p class="check-name">Zitate prüfen</p><p>Gibt es den zitierten Entscheid, gibt es die Erwägung, stimmen Seite und Datum.</p></div>
+      <div><p class="check-name">Anonymisierung prüfen <span class="tag">Vorschau</span></p><p>Zeigt, was in der zu veröffentlichenden Fassung eine Person erkennbar macht, und erstellt eine anonymisierte Kopie.</p></div>
+    </div>
 
     <h2>Installation in Word</h2>
     <p><a class="download" href="https://mcp.opencaselaw.ch/citecheck/manifest.xml" download="citecheck-manifest.xml">Add-in-Datei herunterladen</a></p>
-    <p>Die Datei <code>citecheck-manifest.xml</code> ist 5 KB gross und enthält nur die Adresse des Add-ins. Sie wird einmal in Word eingebunden.</p>
+    <p>Die Datei <code>citecheck-manifest.xml</code> ist 8 KB gross und enthält nur die Adresse des Add-ins. Sie wird einmal in Word eingebunden.</p>
 
     <div class="box">
       <p><strong>Word für Windows</strong> (Microsoft 365 oder Office 2021 und neuer)</p>
@@ -42,7 +56,7 @@
         <li>Einen Ordner anlegen, zum Beispiel <code>C:\citecheck</code>, und die Datei hineinlegen. Rechtsklick auf den Ordner, <kbd>Eigenschaften</kbd>, Registerkarte <kbd>Freigabe</kbd>, <kbd>Freigeben</kbd>, <kbd>Freigeben</kbd>. Den angezeigten Netzwerkpfad notieren, zum Beispiel <code>\\IHR-PC\citecheck</code>.</li>
         <li>In Word: <kbd>Datei</kbd>, <kbd>Optionen</kbd>, <kbd>Trust Center</kbd>, <kbd>Einstellungen für das Trust Center</kbd>, <kbd>Kataloge vertrauenswürdiger Add-Ins</kbd>. Den Netzwerkpfad bei «Katalog-URL» einfügen, <kbd>Katalog hinzufügen</kbd>, «Im Menü anzeigen» ankreuzen, zweimal <kbd>OK</kbd>. Word neu starten.</li>
         <li><kbd>Start</kbd>, <kbd>Add-Ins</kbd>, <kbd>Erweitert</kbd> (ältere Versionen: <kbd>Einfügen</kbd>, <kbd>Meine Add-Ins</kbd>). Registerkarte «Freigegebener Ordner», citecheck wählen, <kbd>Hinzufügen</kbd>.</li>
-        <li>Das Fenster «Zitatprüfung» öffnet sich rechts. Später: Menüband <kbd>Überprüfen</kbd> (Review), Schaltfläche <kbd>Zitate prüfen</kbd> (englisches Word: Check cites).</li>
+        <li>Das Fenster citecheck öffnet sich rechts. Später: Menüband <kbd>Überprüfen</kbd> (Review), Schaltflächen <kbd>Zitate prüfen</kbd> und <kbd>Anonymisierung prüfen</kbd> (englisches Word: Check cites, Check anonymisation).</li>
       </ol>
       <p>Manche Microsoft-365-Versionen zeigen unter <kbd>Meine Add-Ins</kbd> auch <kbd>Mein Add-In hochladen</kbd>; dann die Datei dort hochladen, das geht schneller. Ist das Freigeben von Ordnern nicht erlaubt, kann die IT das Add-in über das Microsoft 365 Admin Center (Integrierte Apps, «Benutzerdefinierte App hochladen») für die gewünschten Personen freigeben; die Datei ist dieselbe.</p>
     </div>
@@ -66,7 +80,11 @@
       </ol>
     </div>
 
-    <h2>Verwendung</h2>
+    <div class="box">
+      <p><strong>Schon installiert?</strong> Die Anonymisierung ist bereits da: im Fenster oben zwischen <kbd>Zitate</kbd> und <kbd>Anonymisierung</kbd> umschalten (Word dafür einmal neu starten). Für die zweite Schaltfläche im Menüband die Datei oben neu herunterladen und die alte ersetzen.</p>
+    </div>
+
+    <h2>Zitate prüfen</h2>
     <ol>
       <li>Entwurf öffnen, <kbd>Entwurf prüfen</kbd>. Beim ersten Mal lädt das Add-in die Zitatliste (17 MB), danach nur, wenn sie sich geändert hat.</li>
       <li>Jeder Verweis erhält eine Zeile: gefunden, weicht ab, nicht in der Liste, nicht geprüft. Anklicken zeigt die Begründung, <kbd>Im Entwurf zeigen</kbd> springt zur Stelle, <kbd>Entscheid öffnen</kbd> führt zum Entscheid auf opencaselaw.ch.</li>
@@ -74,17 +92,39 @@
     </ol>
     <img class="shot" src="docs-pane.png" alt="Das Fenster nach einer Prüfung: Zusammenfassung, Filter, eine Zeile pro Verweis.">
 
-    <h2>Was geprüft wird, und was nicht</h2>
-    <p>Ob der Entscheid in der Liste von OpenCaseLaw steht (1'081'116 Entscheide, Bundesgerichte und kantonale Gerichte, BGE seit Band 1) und ob er die zitierte Erwägung hat. Bei BGE zusätzlich, ob die zitierte Seite im Entscheid liegt. Nicht geprüft wird, ob der Entscheid die Aussage im Entwurf trägt.</p>
+    <h3>Was geprüft wird, und was nicht</h3>
+    <p>Ob der Entscheid in der Liste von OpenCaseLaw steht (über eine Million Entscheide, Bundesgerichte und kantonale Gerichte, BGE seit Band 1) und ob er die zitierte Erwägung hat. Bei BGE zusätzlich, ob die zitierte Seite im Entscheid liegt. Nicht geprüft wird, ob der Entscheid die Aussage im Entwurf trägt.</p>
     <p>«Nicht in der Liste» heisst nicht, dass es den Entscheid nicht gibt: Unveröffentlichte und sehr neue Entscheide fehlen. Das Fenster nennt, was die Liste für das betreffende Gericht enthält. Erwägungsnummern kennt die Liste für rund vier Fünftel der Entscheide; sonst steht «nicht prüfbar».</p>
 
+    <h2>Anonymisierung prüfen <span class="tag">Vorschau</span></h2>
+    <ol>
+      <li>Die Fassung öffnen, die veröffentlicht werden soll, und im Fenster <kbd>Anonymisierung</kbd> wählen (oder im Menüband <kbd>Anonymisierung prüfen</kbd>), dann <kbd>Fassung prüfen</kbd>. Beim ersten Mal lädt das Add-in die Wortliste (2,4 MB).</li>
+      <li>Jedes Wort und jede Zahl der Datei ist entweder erklärt oder steht in der Liste. Erklärt ist, was in veröffentlichten Entscheiden üblich ist, was das Urteil selbst öffentlich macht (Gericht, Vertretung, zitierte Lehre und Rechtsprechung) und jeder Platzhalter. Alles andere sehen Sie, mit jeder Stelle, an der es steht.</li>
+      <li>Ankreuzen, was ersetzt werden soll. Eine Person erhält einen Buchstaben, wo und wie immer ihr Name geschrieben ist (Müller, Müllers, MÜLLER); Buchstaben, die das Dokument schon verwendet, werden übersprungen.</li>
+      <li><kbd>Anonymisierte Kopie erstellen</kbd> schreibt eine neue Datei: die angekreuzten Stellen ersetzt, Änderungen angenommen, Kommentare, ausgeblendeter Text und Dokumenteigenschaften entfernt. Die Kopie wird erneut geprüft und erst dann geöffnet. Ihre Fassung bleibt unverändert.</li>
+    </ol>
+    <img class="shot" src="docs-pane-anon.png" alt="Das Fenster nach einer Prüfung: drei Stellen zum Ansehen (eine Adresse, eine AHV-Nummer, ein einmal übersehener Name), zwei davon mit ihrem Platzhalter angekreuzt, darunter die verborgenen Angaben, die in der Kopie wegfallen.">
+
+    <h3>Was gefunden wird</h3>
+    <p>Namen, auch in gebeugter Form, in Grossbuchstaben und mit Initiale. AHV-Nummern (mit Prüfziffer), IBAN, Telefon- und Mobilnummern, E-Mail-Adressen, Profile in sozialen Medien, Adressen, Kontrollschilder, Parzellen, Geburtsdaten, Versicherten-, ZEMIS-, Ausweis- und Kontonummern. Dieselben Angaben von Ämtern, Versicherern, Firmen und Anwälten gelten als erklärt. Geprüft wird auch, was beim Lesen nicht zu sehen ist: Kommentare und ihre Verfasser, gelöschter Text in Änderungen, ausgeblendeter Text, Kopf- und Fusszeilen, Fuss- und Endnoten, Feldfunktionen, Bildbeschreibungen, Dokumenteigenschaften, Daten von Fachanwendungen im Dokument und der Dateiname.</p>
+
+    <h3>Wie gut, gemessen</h3>
+    <p>An 5'724 veröffentlichten, anonymisierten Entscheiden, die die Wortliste nie gesehen hat:</p>
+    <table class="figures">
+      <tr><td>Kennnummer oder Adresse neben einem Platzhalter (AHV, IBAN, Mobilnummer, Adresse, Kontrollschild, Parzelle, Geburtsdatum)</td><td>100 %</td></tr>
+      <tr><td>Ein an einer Stelle übersehener Name</td><td>96–97 %</td></tr>
+      <tr><td>Derselbe Name in gebeugter Form («Müllers»)</td><td>88 %</td></tr>
+      <tr><td>Stellen zum Ansehen pro Entscheid, Median (deutsch / französisch / italienisch)</td><td>6 / 4 / 6</td></tr>
+    </table>
+    <p>Wo ein Nachname auch ein gewöhnliches Wort ist (Frei, Sommer, Weiss), kann die Prüfung die beiden nicht immer unterscheiden. Nicht beurteilt wird, ob mehrere übliche Angaben zusammen (Alter, Ort, Beruf) eine Person erkennbar machen; Text in Bildern wird nicht gelesen. Die Prüfung entscheidet nichts: Was sie zeigt, beurteilen Sie. Alle Zahlen und Grenzen: <a href="https://github.com/jonashertner/citecheck/blob/main/docs/benchmark-anonymization.md">Messbericht</a>.</p>
+
     <h2>Datenschutz</h2>
-    <p>Der Entwurf, die gefundenen Verweise und die Ergebnisse bleiben im Word-Fenster auf dem Gerät. Geladen werden nur die Dateien des Add-ins und die öffentliche Zitatliste, die für alle gleich ist. Der Browser in Word erzwingt das über eine Content-Security-Policy; die technische Beschreibung und wie man es selbst nachprüft: <a href="https://github.com/jonashertner/citecheck/blob/main/SECURITY.md">SECURITY.md</a>. Quellcode unter MIT-Lizenz: <a href="https://github.com/jonashertner/citecheck">github.com/jonashertner/citecheck</a>.</p>
+    <p>Das Dokument, die gefundenen Verweise und Stellen, die anonymisierte Kopie und alle Ergebnisse bleiben im Word-Fenster auf dem Gerät. Geladen werden nur die Dateien des Add-ins, die öffentliche Zitatliste und die öffentliche Wortliste, beide für alle gleich. Kein Sprachmodell, kein Konto. Der Browser in Word erzwingt das über eine Content-Security-Policy; die technische Beschreibung und wie man es selbst nachprüft: <a href="https://github.com/jonashertner/citecheck/blob/main/SECURITY.md">SECURITY.md</a>. Quellcode unter MIT-Lizenz: <a href="https://github.com/jonashertner/citecheck">github.com/jonashertner/citecheck</a>.</p>
 
     <h2>Rückmeldungen</h2>
-    <p>Bitte den Verweis, wie er im Entwurf steht, und die Meldung des Add-ins senden. Fehlerberichte auch als <a href="https://github.com/jonashertner/citecheck/issues">Issue auf GitHub</a>. Stand: Testversion 0.1, September 2026.</p>
+    <p>Zur Zitatprüfung: den Verweis, wie er im Entwurf steht, und die Meldung des Add-ins. Zur Anonymisierung bitte keine Inhalte aus Dokumenten senden, sondern beschreiben, welche Art Stelle übersehen oder zu Unrecht gezeigt wurde (zum Beispiel «Name nach Bindestrich», «Adresse eines Spitals»). Am besten als <a href="https://github.com/jonashertner/citecheck/issues">Issue auf GitHub</a>. Stand: Version 1.1, Oktober 2026; die Anonymisierung ist eine Vorschau.</p>
 
-    <p class="en">English: citecheck is a Word add-in that checks a draft's references to Swiss court decisions against the OpenCaseLaw cite list, inside Word, without the draft leaving the device. Install: download the add-in file above. Word in the browser: Insert, Add-ins, My Add-ins, Manage My Add-ins, Upload My Add-in. Word for Windows: put the file in a shared folder and add that folder under File, Options, Trust Center, Trusted Add-in Catalogs (some Microsoft 365 versions also offer Upload My Add-in). Word for Mac: put the file in ~/Library/Containers/com.microsoft.Word/Data/Documents/wef and restart Word. In English Word the button is Review, Check cites. Details in the <a href="https://github.com/jonashertner/citecheck#readme">README</a>.</p>
+    <p class="en">English: citecheck is a Word add-in with two checks for Swiss court decisions, inside Word, without the document leaving the device. Check cites: the draft's references against the OpenCaseLaw cite list. Check anonymisation (preview): shows everything in the version to be published that could identify a person (names, identification numbers, addresses, and what a reader does not see: comments, tracked changes, hidden text, properties), lets you tick what to replace and creates an anonymised copy that is checked again before it opens; measured figures and limits in the <a href="https://github.com/jonashertner/citecheck/blob/main/docs/benchmark-anonymization.md">benchmark report</a>. Install: download the add-in file above. Word in the browser: Insert, Add-ins, My Add-ins, Manage My Add-ins, Upload My Add-in. Word for Windows: put the file in a shared folder and add that folder under File, Options, Trust Center, Trusted Add-in Catalogs (some Microsoft 365 versions also offer Upload My Add-in). Word for Mac: put the file in ~/Library/Containers/com.microsoft.Word/Data/Documents/wef and restart Word. In English Word the buttons are Review, Check cites and Check anonymisation. Details in the <a href="https://github.com/jonashertner/citecheck#readme">README</a>.</p>
   </main>
 </body>
 </html>

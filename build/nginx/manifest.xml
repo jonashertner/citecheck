@@ -5,18 +5,14 @@
            xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
            xsi:type="TaskPaneApp">
   <Id>1173d2d2-867d-4c54-a5ef-151b502f8fbf</Id>
-  <Version>1.0.0.0</Version>
+  <Version>1.1.0.0</Version>
   <ProviderName>OpenCaseLaw</ProviderName>
   <DefaultLocale>de-CH</DefaultLocale>
-  <DisplayName DefaultValue="citecheck Zitatprüfung">
-    <Override Locale="fr-CH" Value="citecheck Contrôle des citations"/>
-    <Override Locale="it-CH" Value="citecheck Controllo delle citazioni"/>
-    <Override Locale="en-US" Value="citecheck"/>
-  </DisplayName>
-  <Description DefaultValue="Prüft die Verweise auf Entscheide im Entwurf gegen die Zitatliste von OpenCaseLaw. Der Entwurf verlässt das Gerät nicht.">
-    <Override Locale="fr-CH" Value="Contrôle les renvois à des décisions dans le projet à l'aide de la liste d'OpenCaseLaw. Le projet ne quitte pas l'appareil."/>
-    <Override Locale="it-CH" Value="Controlla i rinvii a decisioni nel progetto con la lista di OpenCaseLaw. Il progetto non lascia il dispositivo."/>
-    <Override Locale="en-US" Value="Checks the draft's references to decisions against the OpenCaseLaw cite list. The draft does not leave the device."/>
+  <DisplayName DefaultValue="citecheck"/>
+  <Description DefaultValue="Prüft die Verweise auf Entscheide gegen die Zitatliste von OpenCaseLaw und zeigt, was in der zu veröffentlichenden Fassung eine Person erkennbar macht. Das Dokument verlässt das Gerät nicht.">
+    <Override Locale="fr-CH" Value="Contrôle les renvois à des décisions à l'aide de la liste d'OpenCaseLaw et montre ce qui, dans la version à publier, permet d'identifier une personne. Le document ne quitte pas l'appareil."/>
+    <Override Locale="it-CH" Value="Controlla i rinvii a decisioni con la lista di OpenCaseLaw e mostra ciò che nella versione da pubblicare rende identificabile una persona. Il documento non lascia il dispositivo."/>
+    <Override Locale="en-US" Value="Checks references to decisions against the OpenCaseLaw cite list and shows what in the version to be published could identify a person. The document does not leave the device."/>
   </Description>
   <IconUrl DefaultValue="https://jonashertner.github.io/citecheck/assets/icon-32.png"/>
   <HighResolutionIconUrl DefaultValue="https://jonashertner.github.io/citecheck/assets/icon-64.png"/>
@@ -63,6 +59,22 @@
                     <SourceLocation resid="Ocl.Pane"/>
                   </Action>
                 </Control>
+                <Control xsi:type="Button" id="Ocl.CiteCheck.Anon">
+                  <Label resid="Ocl.ButtonAnon"/>
+                  <Supertip>
+                    <Title resid="Ocl.ButtonAnon"/>
+                    <Description resid="Ocl.TipAnon"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Ocl.Anon16"/>
+                    <bt:Image size="32" resid="Ocl.Anon32"/>
+                    <bt:Image size="80" resid="Ocl.Anon80"/>
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <TaskpaneId>Ocl.CiteCheck.Pane</TaskpaneId>
+                    <SourceLocation resid="Ocl.PaneAnon"/>
+                  </Action>
+                </Control>
               </Group>
             </OfficeTab>
           </ExtensionPoint>
@@ -74,9 +86,13 @@
         <bt:Image id="Ocl.Icon16" DefaultValue="https://jonashertner.github.io/citecheck/assets/icon-16.png"/>
         <bt:Image id="Ocl.Icon32" DefaultValue="https://jonashertner.github.io/citecheck/assets/icon-32.png"/>
         <bt:Image id="Ocl.Icon80" DefaultValue="https://jonashertner.github.io/citecheck/assets/icon-80.png"/>
+        <bt:Image id="Ocl.Anon16" DefaultValue="https://jonashertner.github.io/citecheck/assets/anon-16.png"/>
+        <bt:Image id="Ocl.Anon32" DefaultValue="https://jonashertner.github.io/citecheck/assets/anon-32.png"/>
+        <bt:Image id="Ocl.Anon80" DefaultValue="https://jonashertner.github.io/citecheck/assets/anon-80.png"/>
       </bt:Images>
       <bt:Urls>
         <bt:Url id="Ocl.Pane" DefaultValue="https://jonashertner.github.io/citecheck/taskpane.html"/>
+        <bt:Url id="Ocl.PaneAnon" DefaultValue="https://jonashertner.github.io/citecheck/taskpane.html?mode=anon"/>
       </bt:Urls>
       <bt:ShortStrings>
         <bt:String id="Ocl.Group" DefaultValue="OpenCaseLaw"/>
@@ -85,12 +101,22 @@
           <bt:Override Locale="it-CH" Value="Controllare le citazioni"/>
           <bt:Override Locale="en-US" Value="Check cites"/>
         </bt:String>
+        <bt:String id="Ocl.ButtonAnon" DefaultValue="Anonymisierung prüfen">
+          <bt:Override Locale="fr-CH" Value="Contrôler l'anonymisation"/>
+          <bt:Override Locale="it-CH" Value="Controllare l'anonimizzazione"/>
+          <bt:Override Locale="en-US" Value="Check anonymisation"/>
+        </bt:String>
       </bt:ShortStrings>
       <bt:LongStrings>
         <bt:String id="Ocl.Tip" DefaultValue="Vergleicht die Verweise auf Entscheide mit der Zitatliste. Der Entwurf bleibt auf diesem Gerät.">
           <bt:Override Locale="fr-CH" Value="Compare les renvois à des décisions avec la liste. Le projet reste sur cet appareil."/>
           <bt:Override Locale="it-CH" Value="Confronta i rinvii a decisioni con la lista. Il progetto resta su questo dispositivo."/>
           <bt:Override Locale="en-US" Value="Compares the references to decisions with the cite list. The draft stays on this device."/>
+        </bt:String>
+        <bt:String id="Ocl.TipAnon" DefaultValue="Zeigt, was in der zu veröffentlichenden Fassung eine Person erkennbar macht, und erstellt eine anonymisierte Kopie. Das Dokument bleibt auf diesem Gerät.">
+          <bt:Override Locale="fr-CH" Value="Montre ce qui, dans la version à publier, permet d'identifier une personne, et crée une copie anonymisée. Le document reste sur cet appareil."/>
+          <bt:Override Locale="it-CH" Value="Mostra ciò che nella versione da pubblicare rende identificabile una persona e crea una copia anonimizzata. Il documento resta su questo dispositivo."/>
+          <bt:Override Locale="en-US" Value="Shows what in the version to be published could identify a person, and creates an anonymised copy. The document stays on this device."/>
         </bt:String>
       </bt:LongStrings>
     </Resources>

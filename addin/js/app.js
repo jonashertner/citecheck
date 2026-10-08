@@ -423,7 +423,9 @@ async function start() {
   const office = state.host === 'word' && Office.context ? Office.context.displayLanguage : null;
   setLanguage(recall('language') || office || navigator.language);
 
-  state.mode = recall('mode') === 'anon' ? 'anon' : 'cites';
+  // The ribbon has a button per check; "Anonymisierung prüfen" opens taskpane.html?mode=anon.
+  const asked = new URLSearchParams(location.search).get('mode');
+  state.mode = asked === 'anon' || asked === 'cites' ? asked : recall('mode') === 'anon' ? 'anon' : 'cites';
   anon.start(state.host);
   $('mode-cites').addEventListener('click', () => setMode('cites'));
   $('mode-anon').addEventListener('click', () => setMode('anon'));
