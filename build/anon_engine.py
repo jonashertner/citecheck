@@ -38,6 +38,8 @@ ROOT = Path(__file__).resolve().parent.parent
 PATTERN_FILE = ROOT / "addin" / "js" / "anon-patterns.js"
 MACROS = {"{<W}": r"(?<!\w)", "{W>}": r"(?!\w)", "{L}": r"[^\W\d_]", "{W}": r"\w", "{w}": r"\w"}
 VISIBLE = ("body", "footnote", "endnote", "header", "footer")
+# Offices that follow "Herr" or "Frau" ("Herr Präsident") and are no name.
+TITLE_NOUNS = {"doktor", "professor", "professorin", "präsident", "präsidentin", "vizepräsident", "vizepräsidentin", "direktor", "direktorin", "kollege", "kollegin", "pfarrer", "pfarrerin", "notar", "notarin", "richter", "richterin", "bundesrat", "bundesrätin", "regierungsrat", "regierungsrätin", "nationalrat", "nationalrätin", "ständerat", "ständerätin", "gemeinderat", "gemeinderätin", "stadtrat", "stadträtin", "oberrichter", "oberrichterin", "bundesrichter", "bundesrichterin", "minister", "ministerin", "président", "présidente", "juge", "presidente", "giudice", "president", "judge", "justice", "chief", "member", "le", "la", "les", "de", "du", "the", "und", "et"}
 PARTICLES = {"von", "van", "de", "da", "di", "del", "della", "du", "des", "der", "le", "la", "zur", "zum"}
 TITLES = {"dr", "prof", "pd", "lic", "iur", "med", "phil", "rer", "pol", "oec", "mlaw", "ll"}
 # Identifier detectors in the order they claim text; a later match that overlaps
@@ -256,6 +258,16 @@ def _adjective(text: str, b: int, vocabulary) -> bool:
 LINKS = ("", "s", "es", "n", "en", "er", "e")
 
 
+def _name_with_s(low: str, vocabulary) -> bool:
+    """A word with an s whose stem is no word ("blasers", "zehnders") is a name's genitive:
+    the compound rule does not make it common unless it makes the stem common too
+    ("bundesgerichts" splits, and so does "bundesgericht")."""
+    if not low.endswith("s") or len(low) < 5:
+        return False
+    stem = low[:-1]
+    return stem not in vocabulary and not compound_split(stem, vocabulary.__contains__)
+
+
 def compound_split(word: str, has, depth: int = 0) -> bool:
     """True when `word` is two or more common words joined ("schneelast",
     "quartiergestaltungspläne"), with a linking s, es, n, en, er or e."""
@@ -314,7 +326,9 @@ def _identifiers(t: _Text, taken: _Spans, explained: _Spans, public: dict) -> li
             if name == "plate" and not P["plate_context"].search(text[max(0, a - 60):a]):
                 continue
             if name == "address":
-                if "_" in value or _public(text, a, b, 150) or P["letterhead"].match(text[b:b + 40]):
+                # "wohnhaft", "domicilié" right before: a person's, whatever office the clause names earlier.
+                resides = P["residence_before"].search(text[max(0, a - 40):a])
+                if "_" in value or (not resides and (_public(text, a, b, 150) or P["letterhead"].match(text[b:b + 40]))):
                     explained.add(a, b); public["address"] = public.get("address", 0) + 1
                     continue
             taken.add(a, b)
@@ -431,6 +445,7 @@ def check(parts: list[dict], vocabulary) -> dict:
 
     counts = {"common": 0, "numbers": 0}
     inflected = []                                   # common words ending in s/es: "Müllers"
+    lower_case = []                                  # words in lower case, judged once the names are known
     named: dict[str, set] = {"court": set(), "counsel": set(), "official": set(), "author": set(), "case": set()}
     for k, ws in by_office.items():
         named[k].update(ws)
@@ -438,12 +453,18 @@ def check(parts: list[dict], vocabulary) -> dict:
     for m in P["word"].finditer(text):
         a, b = m.start(), m.end()
         token = m.group()
-        if not is_upper(token[0]) or taken.overlaps(a, b) or explained.overlaps(a, b):
+        if not is_upper(token[0]):
+            lower_case.append((a, b, token))
+            continue
+        if taken.overlaps(a, b) or explained.overlaps(a, b):
             continue
         low = token.lower()
         listed = any("!" + low[:len(low) - len(x)] in vocabulary for x in ("", "s", "es", "n"))
+        # After "Herr", "Frau", "Mr", "Mme" (initials between): a name, even one that is a word ("Herr Frei").
+        titled = (bool(P["title_before"].search(text[max(0, a - 30):a])) and low not in TITLE_NOUNS
+                  and not P["role"].match(text, a))
         title = len(token) > 1 and token[1:] == token[1:].lower()
-        if low in vocabulary or (not listed and compound_split(low, vocabulary.__contains__)):
+        if not titled and (low in vocabulary or (not listed and compound_split(low, vocabulary.__contains__) and not _name_with_s(low, vocabulary))):
             # "~saldo": ordinary in lower case; "Saldo" in mid-sentence is the name.
             if not (title and "~" + low in vocabulary and not _sentence_start(text, a)
                     and not P["det_before"].search(text[max(0, a - 25):a])):
@@ -474,6 +495,17 @@ def check(parts: list[dict], vocabulary) -> dict:
         k = fold(token)
         if (k[:-1] in stems) or (k.endswith("es") and k[:-2] in stems):
             counts["common"] -= 1
+            shown.append({"kind": "word", "label": None, "start": a, "end": b, "text": token})
+
+    # A name the document shows written in lower case ("müller", "müllers"), where that is no word ("frei" is).
+    for a, b, token in (lower_case if stems else []):
+        low = token.lower()
+        if low in vocabulary and (not low.endswith("s") or low[:-1] in vocabulary):
+            continue                                 # a word: the common case, before folding
+        if taken.overlaps(a, b) or explained.overlaps(a, b):
+            continue
+        k = fold(token)
+        if (k in stems and low not in vocabulary) or (k.endswith("s") and k[:-1] in stems and low[:-1] not in vocabulary):
             shown.append({"kind": "word", "label": None, "start": a, "end": b, "text": token})
 
     for m in P["code"].finditer(text):

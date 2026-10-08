@@ -61,6 +61,7 @@ gericht
 gerichtsschreiber
 geschäft
 handelsplatz
+herr
 hof
 il
 im

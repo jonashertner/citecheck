@@ -21,6 +21,8 @@
 import { PATTERNS, MACROS } from './anon-patterns.js';
 
 const VISIBLE = new Set(['body', 'footnote', 'endnote', 'header', 'footer']);
+// Offices that follow "Herr" or "Frau" ("Herr Präsident") and are no name.
+const TITLE_NOUNS = new Set(['doktor', 'professor', 'professorin', 'präsident', 'präsidentin', 'vizepräsident', 'vizepräsidentin', 'direktor', 'direktorin', 'kollege', 'kollegin', 'pfarrer', 'pfarrerin', 'notar', 'notarin', 'richter', 'richterin', 'bundesrat', 'bundesrätin', 'regierungsrat', 'regierungsrätin', 'nationalrat', 'nationalrätin', 'ständerat', 'ständerätin', 'gemeinderat', 'gemeinderätin', 'stadtrat', 'stadträtin', 'oberrichter', 'oberrichterin', 'bundesrichter', 'bundesrichterin', 'minister', 'ministerin', 'président', 'présidente', 'juge', 'presidente', 'giudice', 'president', 'judge', 'justice', 'chief', 'member', 'le', 'la', 'les', 'de', 'du', 'the', 'und', 'et']);
 const PARTICLES = new Set(['von', 'van', 'de', 'da', 'di', 'del', 'della', 'du', 'des', 'der', 'le', 'la', 'zur', 'zum']);
 const TITLES = new Set(['dr', 'prof', 'pd', 'lic', 'iur', 'med', 'phil', 'rer', 'pol', 'oec', 'mlaw', 'll']);
 const IDENTIFIERS = ['ahv', 'ahv_old', 'iban', 'insured', 'zemis', 'document_no', 'account',
@@ -98,6 +100,15 @@ function sentenceStart(text, a) {
 function adjective(text, b, has) {
   const m = /^ ([\p{L}\p{Nl}\p{No}]{2,})/u.exec(text.slice(b, b + 40));
   return Boolean(m) && isUpper(m[1][0]) && has(m[1].toLowerCase());
+}
+
+// A word with an s whose stem is no word ("blasers", "zehnders") is a name's genitive:
+// the compound rule does not make it common unless it makes the stem common too
+// ("bundesgerichts" splits, and so does "bundesgericht").
+function nameWithS(low, has) {
+  if (!low.endsWith('s') || low.length < 5) return false;
+  const stem = low.slice(0, -1);
+  return !has(stem) && !compoundSplit(stem, has);
 }
 
 export function compoundSplit(word, has, depth = 0) {
@@ -234,7 +245,9 @@ function identifiers(t, taken, explained, pub) {
       // A landline in a letterhead or beside an office: "Postfach … Telefon … Fax …".
       if (name === 'phone' && !matchStart('mobile', value) && (isPublic(text, a) || matchStart('letterhead', text.slice(b, b + 40)))) { explained.add(a, b); bump(pub, 'phone'); continue; }
       if (name === 'plate' && !test('plate_context', text.slice(Math.max(0, a - 60), a))) continue;
-      if (name === 'address' && (value.includes('_') || isPublic(text, a, 150) || matchStart('letterhead', text.slice(b, b + 40)))) { explained.add(a, b); bump(pub, 'address'); continue; }
+      // "wohnhaft", "domicilié" right before: a person's, whatever office the clause names earlier.
+      if (name === 'address' && (value.includes('_') || (!test('residence_before', text.slice(Math.max(0, a - 40), a))
+        && (isPublic(text, a, 150) || matchStart('letterhead', text.slice(b, b + 40)))))) { explained.add(a, b); bump(pub, 'address'); continue; }
       taken.add(a, b);
       out.push({ kind: 'identifier', label, start: a, end: b, text: value });
     }
@@ -327,7 +340,13 @@ export function check(parts, vocabulary) {
   const taken = new Spans();
   const explained = new Spans();
   const pub = {};
-  const has = (w) => vocabulary.has(w);
+  // A ruling repeats its words; each is looked up in the list once.
+  const known = new Map();
+  const has = (w) => {
+    let v = known.get(w);
+    if (v === undefined) { v = vocabulary.has(w); known.set(w, v); }
+    return v;
+  };
 
   const placeholders = {};
   for (const m of all('placeholder', text)) {
@@ -345,6 +364,7 @@ export function check(parts, vocabulary) {
 
   const counts = { common: 0, numbers: 0 };
   const inflected = [];                              // common words ending in s/es: "Müllers"
+  const lowerCase = [];                            // words in lower case, judged once the names are known
   const named = { court: new Set(), counsel: new Set(), official: new Set(), author: new Set(), case: new Set() };
   for (const [k, ws] of Object.entries(byOffice)) for (const w of ws) named[k].add(w);
 
@@ -352,11 +372,14 @@ export function check(parts, vocabulary) {
     const a = m.index;
     const token = m[0];
     const b = a + token.length;
-    if (!isUpper(token[0]) || taken.overlaps(a, b) || explained.overlaps(a, b)) continue;
+    if (!isUpper(token[0])) { lowerCase.push([a, b, token]); continue; }
+    if (taken.overlaps(a, b) || explained.overlaps(a, b)) continue;
     const low = token.toLowerCase();
     const listed = ['', 's', 'es', 'n'].some((x) => has('!' + low.slice(0, low.length - x.length)));
     const title = token.length > 1 && token.slice(1) === token.slice(1).toLowerCase();
-    if (has(low) || (!listed && compoundSplit(low, has))) {
+    // After "Herr", "Frau", "Mr", "Mme" (initials between): a name, even one that is a word ("Herr Frei").
+    const titled = test('title_before', text.slice(Math.max(0, a - 30), a)) && !TITLE_NOUNS.has(low) && !at('role', text, a);
+    if (!titled && (has(low) || (!listed && compoundSplit(low, has) && !nameWithS(low, has)))) {
       // "~saldo": ordinary in lower case; "Saldo" in mid-sentence is the name.
       if (!(title && has('~' + low) && !sentenceStart(text, a) && !test('det_before', text.slice(Math.max(0, a - 25), a)))) {
         counts.common++;
@@ -382,6 +405,17 @@ export function check(parts, vocabulary) {
     const k = fold(token);
     if (stems.has(k.slice(0, -1)) || (k.endsWith('es') && stems.has(k.slice(0, -2)))) {
       counts.common--;
+      shown.push({ kind: 'word', label: null, start: a, end: b, text: token });
+    }
+  }
+
+  // A name the document shows written in lower case ("müller", "müllers"), where that is no word ("frei" is).
+  for (const [a, b, token] of stems.size ? lowerCase : []) {
+    const low = token.toLowerCase();
+    if (has(low) && (!low.endsWith('s') || has(low.slice(0, -1)))) continue;      // a word: the common case, before folding
+    if (taken.overlaps(a, b) || explained.overlaps(a, b)) continue;
+    const k = fold(token);
+    if ((stems.has(k) && !has(low)) || (k.endsWith('s') && stems.has(k.slice(0, -1)) && !has(low.slice(0, -1)))) {
       shown.push({ kind: 'word', label: null, start: a, end: b, text: token });
     }
   }

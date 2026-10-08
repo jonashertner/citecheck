@@ -349,5 +349,38 @@
     }
    }
   ]
+ },
+ {
+  "name": "Gaps 2026-10-08: an address after wohnhaft beside an office, a genitive that splits as a compound, a name in lower case, a word after Herr",
+  "parts": [
+   {
+    "text": "Das Obergericht stellte der Beschwerdeführerin, wohnhaft Bahnhofstrasse 12, 8001 Zürich, die Akten zu.",
+    "where": {
+     "part": "body",
+     "index": 0
+    }
+   },
+   {
+    "text": "Schneedies Antrag wurde abgewiesen.",
+    "where": {
+     "part": "body",
+     "index": 1
+    }
+   },
+   {
+    "text": "Hans Müller bestritt dies; die akte müller und müllers konto.",
+    "where": {
+     "part": "body",
+     "index": 2
+    }
+   },
+   {
+    "text": "Herr Saldo und Herr Präsident bestritten dies.",
+    "where": {
+     "part": "body",
+     "index": 3
+    }
+   }
+  ]
  }
 ]

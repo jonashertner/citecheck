@@ -141,3 +141,14 @@ test('Word test 2026-10-08: combining umlaut, date forms, one-letter e-mail, a p
   assert.ok(r.people.some((p) => p.name === 'Seiler' && p.mentions[0].part === 3), 'the party Seiler is shown');
   assert.deepEqual(r.people.filter((p) => p.mentions[0].part === 4).map((p) => p.name), ['Anna Keller', 'Peter Brunner']);
 });
+
+test('gaps 2026-10-08: an address after "wohnhaft" beside an office, a genitive that splits as a compound, a name in lower case', () => {
+  const r = run(10);
+  const where = (e) => e.occurrences.map((o) => [o.part, o.text]);
+  assert.deepEqual(r.entries.filter((e) => e.label === 'address').map(where), [[[0, 'Bahnhofstrasse 12, 8001 Zürich']]]);
+  assert.ok(r.entries.some((e) => e.occurrences.some((o) => o.part === 1 && o.text === 'Schneedies')), 'schnee + dies, but "Schneedie" is no word');
+  const hans = r.people.find((p) => p.name === 'Hans Müller');
+  assert.deepEqual(hans.mentions.map((m) => m.text), ['Hans Müller', 'müller', 'müller']);   // the genitive s stays
+  // after "Herr" a word is a name ("Saldo" is in the word list), an office is not
+  assert.deepEqual(r.entries.filter((e) => e.occurrences.some((o) => o.part === 3)).map((e) => e.text), ['Saldo']);
+});

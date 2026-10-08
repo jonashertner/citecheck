@@ -1,11 +1,11 @@
 {
  "schema": 1,
- "file": "vocabulary-2026-10-07-e64532a2.txt.gz",
- "bytes": 2415937,
- "sha256": "e64532a2f214d032aa3e851ffa5c4fcb5e9e9a661d4fedfa580de4778ffc97d9",
- "generated": "2026-10-07T23:54:33Z",
- "words": 645934,
- "exceptions": 96301,
+ "file": "vocabulary-2026-10-08-bad81567.txt.gz",
+ "bytes": 2434785,
+ "sha256": "bad815673306d6db465cb1f0d6b985ba04dcf6bead610f3b4619316704192358",
+ "generated": "2026-10-08T21:21:37Z",
+ "words": 647403,
+ "exceptions": 101349,
  "rulings": 959038,
  "courts": 120,
  "holdout": 10,
@@ -17,6 +17,8 @@
   "ratio": 100.0,
   "name_context": 0.1,
   "unknown_min_docs": 2000,
+  "unknown_word_docs": 100,
+  "unknown_word_courts": 10,
   "named": 0.25
  },
  "names": {
@@ -99,7 +101,7 @@
    "olivier",
    "kneubühler"
   ],
-  "names_treated_as_words": 24388,
+  "names_treated_as_words": 25857,
   "residents_bearing_them": 1081643,
   "examples": [
    "maries",

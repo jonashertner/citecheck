@@ -183,8 +183,12 @@ def decide(stats, names, bearers, residents, total_docs, a) -> tuple[list[str], 
             people = bearers.get(low, 0) or bearers.get(stem or "", 0)
             ratio = share / (people / residents) if people else float("inf")
             named = (row[TITLED] + row[FIRSTED]) / max(1, row[CAP])
-            if people == 0 and row[DOCS] < a.unknown_min_docs and not used_lower:
-                continue                       # a Wikidata-only name: needs more evidence
+            # A Wikidata-only name (no Swiss bearers) needs more evidence, unless the corpus, in many
+            # rulings of many courts, never writes it as a name: "Armut", "Rentner", "Kaffee", "Word".
+            never_named = (row[DOCS] >= a.unknown_word_docs and row[COURTS] >= a.unknown_word_courts
+                           and row[TITLED] + row[FIRSTED] < 0.01 * max(1, row[CAP]))
+            if people == 0 and row[DOCS] < a.unknown_min_docs and not used_lower and not never_named:
+                continue
             if not (used_lower or (ratio >= a.ratio and named < a.name_context)):
                 if row[DOCS] >= a.noun_docs and named < 0.05 and row[LOW] * 10 < row[CAP]:
                     nouns.append(low)
@@ -221,6 +225,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--ratio", type=float, default=100.0)
     ap.add_argument("--name-context", type=float, default=0.1)
     ap.add_argument("--unknown-min-docs", type=int, default=2000)
+    ap.add_argument("--unknown-word-docs", type=int, default=100,
+                    help="a Wikidata-only name in this many rulings, never written as a name, is a word")
+    ap.add_argument("--unknown-word-courts", type=int, default=10)
     ap.add_argument("--named", type=float, default=0.25,
                     help="a word on no list is a name when this share of its capitalised occurrences follows a title, office or first name")
     ap.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 2))
@@ -295,7 +302,8 @@ def finish(stats, total_docs, files, names, bearers, residents, a) -> int:
         "words": len(common), "exceptions": len(exceptions),
         "rulings": total_docs, "courts": len(files), "holdout": a.holdout,
         "parameters": {"min_docs": a.min_docs, "min_courts": a.min_courts, "or_docs": a.or_docs, "noun_docs": a.noun_docs, "ratio": a.ratio,
-                       "name_context": a.name_context, "unknown_min_docs": a.unknown_min_docs, "named": a.named},
+                       "name_context": a.name_context, "unknown_min_docs": a.unknown_min_docs, "unknown_word_docs": a.unknown_word_docs,
+                       "unknown_word_courts": a.unknown_word_courts, "named": a.named},
         "names": {"total": len(names), "with_bearers": len(bearers), **report},
         "sources": ["OpenCaseLaw corpus, HuggingFace voilaj/swiss-caselaw (CC0)",
                     "Bundesamt für Statistik: Nachnamen und Vornamen der ständigen Wohnbevölkerung (opendata.swiss)",

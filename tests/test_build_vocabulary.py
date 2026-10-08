@@ -14,7 +14,7 @@ import build_vocabulary as bv  # noqa: E402
 from anon_engine import Vocabulary  # noqa: E402
 
 ARGS = argparse.Namespace(min_docs=5, min_courts=2, or_docs=30, noun_docs=500, ratio=100.0, name_context=0.1,
-                          unknown_min_docs=2000, named=0.25)
+                          unknown_min_docs=2000, unknown_word_docs=100, unknown_word_courts=10, named=0.25)
 RESIDENTS = 8_000_000
 TOTAL = 1_000_000
 
@@ -75,6 +75,15 @@ def test_a_name_only_on_wikidata_needs_much_evidence_to_count_as_a_word():
     stats = {"doorson": [300, 2, 320, 0, 5], "gericht": [500_000, 100, 600_000, 1_000, 10]}
     common, _ = decide(stats, names={"doorson", "gericht"})
     assert common == {"gericht"}
+
+
+def test_a_wikidata_only_name_the_corpus_never_writes_as_a_name_is_a_word():
+    # "Rentner" and "Word" are family names on Wikidata only; in many rulings of many courts no title,
+    # office or first name ever stands before them. An ECtHR applicant ("Mr Sadak") does have one.
+    stats = {"rentner": [900, 60, 1_200, 30, 0], "word": [150, 12, 200, 40, 1], "sadak": [400, 30, 500, 0, 40],
+             "seltsam": [90, 12, 100, 0, 0]}
+    common, _ = decide(stats, names={"rentner", "word", "sadak", "seltsam"})
+    assert common == {"rentner", "word"}             # sadak written as a name, seltsam in too few rulings
 
 
 def test_acronyms_are_common_and_a_name_in_capitals_is_still_a_name():

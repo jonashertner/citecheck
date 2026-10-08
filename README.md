@@ -114,8 +114,9 @@ How well it works is measured, not claimed: [docs/benchmark-anonymization.md](do
 gives the figures on 5,724 published, anonymized rulings the word list never saw. In short: every
 identifier put next to a placeholder (AHV number, IBAN, mobile, address, plate, parcel, date of birth)
 is shown; a name missed in one place is shown in about 96 to 97 % of cases; a German ruling shows a
-median of 6 entries to look at, a French one 4. Where a surname is also an ordinary word (Frei, Sommer)
-the check cannot always tell; the report says how often.
+median of 5 entries to look at, a French one 4. Where a surname is also an ordinary word (Frei, Sommer)
+the check cannot always tell, unless a title stands before it ("Herr Frei" is shown); the report says
+how often.
 
 ## How it stays local
 
@@ -239,6 +240,9 @@ surnames and first names of the Swiss resident population, or a Wikidata family
 or given name) stays in only when the corpus uses it as an ordinary word: written
 in lower case at least as often as capitalised, or at least 100 times more
 frequent in rulings than among residents and rarely after a title or an office.
+A family name found only on Wikidata (no Swiss resident bears it) is a word when
+the corpus, in at least 100 rulings of 10 courts, never writes it after a title,
+an office or a first name ("Rentner", "Kaffee", "Word").
 "März", "Recht" and "Basler" are common; "Seiler" and "Meyer" stay names however
 often judges carry them. Inflected names ("Müllers") are judged like the name.
 
