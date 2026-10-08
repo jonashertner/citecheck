@@ -32,6 +32,7 @@ const STRINGS = {
     pin_parent_only: 'E. {pin} ist nicht einzeln erfasst; E. {parent} ist vorhanden.',
     page_inside: 'S. {pages} liegt im Entscheid (S. {first}–{last}).', languages: 'Sprache',
     page_outside: 'S. {pages} liegt ausserhalb des Entscheids (S. {first}–{last}).', page_before: 'S. {pages} liegt vor dem Entscheid (beginnt auf S. {first}).',
+    cat_pinpoint: 'Erwägung', cat_page: 'Seite', cat_date: 'Datum', cat_date_invalid: 'Datum gibt es nicht', cat_court: 'Gericht', a_state_open: 'offen', a_state_replace: 'wird {p}', a_state_keep: 'bleibt', a_tally: '{n} Angaben · {r} ersetzen · {k} behalten · {o} offen', a_preview_label: 'Vorschau', a_removed_title: 'Was wird entfernt?', a_scope: 'Geprüft: {name}.', a_steps: '↑ ↓ führt von Stelle zu Stelle.', lab_short_person: 'Person', lab_short_word: 'Name oder Wort', lab_short_ambiguous: 'Mehrdeutig', a_places_n: '{n} Stellen', a_places_one: '1 Stelle',
     about_timings: 'Letzte Prüfung', timings_cites: 'Entwurf lesen {read} ms, Liste {list} ms, prüfen {check} ms, anzeigen {render} ms', timings_anon: 'Wortliste {words} ms, Datei lesen {read} ms, prüfen {check} ms, anzeigen {render} ms',
     date_invalid: 'Den Tag im Entwurf gibt es nicht: {written}.',
     date_differs: 'Datum im Entwurf: {written}. In der Liste: {listed}.',
@@ -89,6 +90,7 @@ const STRINGS = {
     pin_parent_only: 'Le consid. {pin} n’est pas répertorié séparément; le consid. {parent} existe.',
     page_inside: 'La p. {pages} est dans la décision (p. {first}–{last}).', languages: 'Langue',
     page_outside: 'La p. {pages} est hors de la décision (p. {first}–{last}).', page_before: 'La p. {pages} précède la décision (début p. {first}).',
+    cat_pinpoint: 'considérant', cat_page: 'page', cat_date: 'date', cat_date_invalid: 'date inexistante', cat_court: 'tribunal', a_state_open: 'ouvert', a_state_replace: 'devient {p}', a_state_keep: 'conservé', a_tally: '{n} indications · {r} à remplacer · {k} conservées · {o} ouvertes', a_preview_label: 'Aperçu', a_removed_title: 'Qu’est-ce qui est supprimé?', a_scope: 'Contrôlé: {name}.', a_steps: '↑ ↓ passe d’un passage à l’autre.', lab_short_person: 'Personne', lab_short_word: 'Nom ou mot', lab_short_ambiguous: 'Ambigu', a_places_n: '{n} passages', a_places_one: '1 passage',
     about_timings: 'Dernier contrôle', timings_cites: 'lire le projet {read} ms, liste {list} ms, contrôler {check} ms, afficher {render} ms', timings_anon: 'liste de mots {words} ms, lire le fichier {read} ms, contrôler {check} ms, afficher {render} ms',
     date_invalid: 'Ce jour n’existe pas: {written}.',
     date_differs: 'Date dans le projet: {written}. Dans la liste: {listed}.',
@@ -146,6 +148,7 @@ const STRINGS = {
     pin_parent_only: 'Il consid. {pin} non è registrato separatamente; il consid. {parent} esiste.',
     page_inside: 'La pag. {pages} è nella decisione (pag. {first}–{last}).', languages: 'Lingua',
     page_outside: 'La pag. {pages} è fuori dalla decisione (pag. {first}–{last}).', page_before: 'La pag. {pages} precede la decisione (inizio pag. {first}).',
+    cat_pinpoint: 'considerando', cat_page: 'pagina', cat_date: 'data', cat_date_invalid: 'data inesistente', cat_court: 'tribunale', a_state_open: 'aperto', a_state_replace: 'diventa {p}', a_state_keep: 'mantenuto', a_tally: '{n} indicazioni · {r} da sostituire · {k} mantenute · {o} aperte', a_preview_label: 'Anteprima', a_removed_title: 'Che cosa viene rimosso?', a_scope: 'Controllato: {name}.', a_steps: '↑ ↓ passa da un passaggio all’altro.', lab_short_person: 'Persona', lab_short_word: 'Nome o parola', lab_short_ambiguous: 'Ambiguo', a_places_n: '{n} passaggi', a_places_one: '1 passaggio',
     about_timings: 'Ultimo controllo', timings_cites: 'leggere la bozza {read} ms, lista {list} ms, controllare {check} ms, mostrare {render} ms', timings_anon: 'lista di parole {words} ms, leggere il file {read} ms, controllare {check} ms, mostrare {render} ms',
     date_invalid: 'Questo giorno non esiste: {written}.',
     date_differs: 'Data nel progetto: {written}. Nella lista: {listed}.',
@@ -203,6 +206,7 @@ const STRINGS = {
     pin_parent_only: 'E. {pin} is not listed on its own; E. {parent} exists.',
     page_inside: 'P. {pages} lies within the decision (pp. {first}–{last}).', languages: 'Language',
     page_outside: 'P. {pages} lies outside the decision (pp. {first}–{last}).', page_before: 'P. {pages} lies before the decision (starts on p. {first}).',
+    cat_pinpoint: 'Erwägung', cat_page: 'page', cat_date: 'date', cat_date_invalid: 'no such date', cat_court: 'court', a_state_open: 'open', a_state_replace: 'becomes {p}', a_state_keep: 'kept', a_tally: '{n} items · {r} to replace · {k} kept · {o} open', a_preview_label: 'Preview', a_removed_title: 'What is removed?', a_scope: 'Checked: {name}.', a_steps: '↑ ↓ steps from place to place.', lab_short_person: 'Person', lab_short_word: 'Name or word', lab_short_ambiguous: 'Ambiguous', a_places_n: '{n} places', a_places_one: '1 place',
     about_timings: 'Last check', timings_cites: 'read the draft {read} ms, list {list} ms, check {check} ms, show {render} ms', timings_anon: 'word list {words} ms, read the file {read} ms, check {check} ms, show {render} ms',
     date_invalid: 'This day does not exist: {written}.',
     date_differs: 'Date in the draft: {written}. In the list: {listed}.',
@@ -421,6 +425,15 @@ export function formatDate(iso, { written = false } = {}) {
   if (!written && m[2] === '01' && m[3] === '01') return m[1];
   const date = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
   return new Intl.DateTimeFormat(LOCALES[current], { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(date);
+}
+
+// A short date for a row: 17.01.2014, 17/01/2014; a year alone stays a year.
+export function formatDateShort(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || '');
+  if (!m) return iso || '';
+  if (m[2] === '01' && m[3] === '01') return m[1];
+  const date = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  return new Intl.DateTimeFormat(LOCALES[current], { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' }).format(date);
 }
 
 export function formatNumber(n) {

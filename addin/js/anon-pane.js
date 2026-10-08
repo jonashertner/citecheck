@@ -41,6 +41,8 @@ const state = {
   decide: new Map(),     // row key -> {replace, ok, placeholder}
   style: 'long',
   open: null,
+  step: 0,               // the place shown in the open row
+  compact: false,        // the header folded after a result
   busy: false,
   copy: null,            // {left, opened, url, name}
 };
@@ -350,13 +352,16 @@ function placeName(o) {
   return t('part_' + o.kind);
 }
 
-function contextOf(o) {
+// The place in its sentence; ticked, with what it becomes beside it ("~~Hans Müller~~ A.________").
+function contextOf(o, becomes) {
   const text = state.read.parts[o.part].text;
   // Cut at a word boundary, and only where the context really is cut.
   const before = o.start > 60 ? text.slice(o.start - 60, o.start).replace(/^\S*\s/, '') : text.slice(0, o.start);
   const after = o.end + 60 < text.length ? text.slice(o.end, o.end + 60).replace(/\s\S*$/, '') : text.slice(o.end);
   const p = el('p', 'ctx');
-  p.append((o.start > 60 ? '… ' : '') + before, el('mark', null, o.text), after + (o.end + 60 < text.length ? ' …' : ''));
+  p.append((o.start > 60 ? '… ' : '') + before, el('mark', null, o.text));
+  if (becomes) p.append(el('span', 'becomes', becomes));
+  p.append(after + (o.end + 60 < text.length ? ' …' : ''));
   return p;
 }
 
@@ -371,6 +376,32 @@ function describe(row) {
   return row.person ? t('lab_person') : t('lab_word');
 }
 
+// What the row is, in a word or two: "Person", "E-Mail-Adresse", "Mehrdeutig".
+function shortLabel(row) {
+  if (row.kind === 'identifier') return t('lab_' + row.label);
+  if (row.kind === 'number') return t('lab_number');
+  if (row.ambiguous) return t('lab_short_ambiguous');
+  return row.person ? t('lab_short_person') : t('lab_short_word');
+}
+
+// What happens to it, in words (colour only supports it): open, becomes A.________, kept.
+function stateOf(row) {
+  const d = state.decide.get(row.key);
+  if (row.removed) return t('a_removed');
+  if (d.replace) return t('a_state_replace', { p: [...new Set(row.occurrences.map((o, i) => placeAt(row, i)))].join(' ') });
+  return d.ok ? t('a_state_keep') : t('a_state_open');
+}
+
+// In an open row, the arrow keys go from place to place and show each in Word.
+function step(row, by) {
+  const visible = row.occurrences.map((o, i) => (o.visible ? i : -1)).filter((i) => i >= 0);
+  if (!visible.length) return;
+  const at = visible.indexOf(state.step);
+  state.step = visible[Math.max(0, Math.min(visible.length - 1, (at < 0 ? -1 : at) + by))];
+  render();
+  show(row, state.step);
+}
+
 function renderRow(row) {
   const d = state.decide.get(row.key);
   const li = el('li', 'a-row' + (d.replace ? ' a-replace' : '') + (d.ok ? ' a-ok' : '') + (state.open === row.key ? ' a-open' : '') + (row.kind === 'identifier' ? ' a-identifier' : ''));
@@ -383,6 +414,8 @@ function renderRow(row) {
   box.checked = d.replace;
   box.setAttribute('aria-label', t('a_replace') + ': ' + row.text);
   box.addEventListener('change', () => { d.replace = box.checked; if (d.replace) d.ok = false; state.copy = null; render(); });
+  const hit = el('label', 'a-hit');
+  hit.append(box);
 
   const name = el('button', 'a-name');
   name.dataset.focus = 'name:' + row.key;
@@ -390,9 +423,13 @@ function renderRow(row) {
   name.setAttribute('aria-expanded', String(state.open === row.key));
   name.append(el('span', 'a-forms', row.text));
   if (d.replace) name.append(el('span', 'a-becomes', [...new Set(row.occurrences.map((o, i) => placeAt(row, i)))].join(' ')));
-  name.addEventListener('click', () => { state.open = state.open === row.key ? null : row.key; render(); if (state.open) show(row, 0); });
+  name.addEventListener('click', () => { state.open = state.open === row.key ? null : row.key; state.step = 0; render(); if (state.open) show(row, 0); });
+  li.addEventListener('keydown', (e) => {
+    if (state.open !== row.key || (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') || e.target.tagName === 'SELECT') return;
+    e.preventDefault();
+    step(row, e.key === 'ArrowDown' ? 1 : -1);
+  });
 
-  const count = el('span', 'a-count', t('a_times', { n: row.occurrences.length }));
   if (row.removed) {
     box.disabled = true;
     box.checked = true;
@@ -409,36 +446,45 @@ function renderRow(row) {
     chip.append(opt);
   }
   chip.addEventListener('change', () => { d.placeholder = chip.value; d.each = null; d.replace = true; d.ok = false; state.copy = null; render(); });
-  head.append(box, name, count);
+  head.append(hit, name);
   if (!row.removed) head.append(chip);
   li.append(head);
 
   // Where it stands: per kind of place, with a count where there are several.
   const kinds = new Map();
   for (const o of row.occurrences) kinds.set(o.kind, (kinds.get(o.kind) || 0) + 1);
-  const where = [...kinds].map(([k, n]) => (k === 'body' && n === 1 ? placeName(row.occurrences[0]) : t('part_' + k) + (n > 1 ? ' ' + t('a_times', { n }) : '')));
-  const line = el('div', 'a-line' + (state.open === row.key ? '' : ' a-short'));
-  line.append(el('p', null, describe(row).replace(/[^.]$/, '$&.')));
-  if (row.variants.length) line.append(el('p', null, t('a_variants', { list: row.variants.join(', ') })));
-  line.append(el('p', null, t('a_where', { list: where.join(', ') })));
+  // (the count of places follows on the same line)
+  const where = [...kinds].map(([k, n]) => (k === 'body' && n === 1 ? placeName(row.occurrences[0]) : t('part_' + k)));
+  const open = state.open === row.key;
+  const line = el('div', 'a-line');
+  const n = row.occurrences.length;
+  const meta = el('p', 'a-meta', [shortLabel(row), where.join(', '), n === 1 ? t('a_places_one') : t('a_places_n', { n })].join(' · ') + ' · ');
+  meta.append(el('span', 'a-state', stateOf(row)));
+  line.append(meta);
+  if (open) {
+    line.append(el('p', null, describe(row).replace(/[^.]$/, '$&.')));
+    if (row.variants.length) line.append(el('p', null, t('a_variants', { list: row.variants.join(', ') })));
+  }
   if (row.hidden) line.append(el('p', null, row.removed ? t('a_removed') : t('a_kept')));
   li.append(line);
 
-  if (state.open === row.key) {
+  if (open) {
     const body = el('div', 'a-body');
     const list = el('ol', 'a-places');
     row.occurrences.slice(0, 40).forEach((o, i) => {
-      const item = el('li');
+      const item = el('li', i === state.step ? 'a-current' : null);
       const place = el('button', 'a-place', placeName(o));
       place.type = 'button';
+      place.dataset.focus = 'place:' + row.key + ':' + i;
       place.disabled = state.host !== 'word' || !o.visible;
-      place.addEventListener('click', () => show(row, i));
+      place.addEventListener('click', () => { state.step = i; render(); show(row, i); });
       item.append(place);
       if (row.ambiguous && o.visible) item.append(' ', placeChip(row, i));
-      item.append(contextOf(o));
+      item.append(contextOf(o, d.replace ? placeAt(row, i) : null));
       list.append(item);
     });
     body.append(list);
+    if (state.host === 'word' && row.occurrences.length > 1) body.append(el('p', 'a-steps', t('a_steps')));
     const actions = el('div', 'f-actions');
     const ok = el('button', 'quiet', d.ok ? t('a_ok_undo') : t('a_ok'));
     ok.dataset.focus = 'ok:' + row.key;
@@ -557,7 +603,9 @@ export function render() {
 
 function draw() {
   $('a-purpose').textContent = t('a_purpose');
+  $('a-preview-label').textContent = t('a_preview_label');
   $('a-preview').textContent = t('a_preview');
+  $('a-removed-title').textContent = t('a_removed_title');
   $('a-feedback').textContent = t('a_feedback');
   $('a-check').textContent = state.busy === 'check' ? t('a_checking') : state.result ? t('a_recheck') : t('a_check');
   $('a-check').className = state.result ? 'quiet wide' : 'primary';      // once there is a result, the copy is the main action
@@ -574,6 +622,14 @@ function draw() {
 
   const r = state.result;
   $('a-summary').hidden = $('a-results').hidden = $('a-copybar').hidden = !r;
+  // After a check the results get the room: the purpose gives way to one line naming what was
+  // checked, and the preview notice folds (it stays one click away, never gone).
+  $('a-purpose').hidden = Boolean(r);
+  // In Word, one line names the document checked (outside Word the file line above does).
+  const name = state.host === 'word' ? word.fileName() : '';
+  $('a-scope').hidden = !r || !name;
+  $('a-scope').textContent = name ? t('a_scope', { name }) : '';
+  if (Boolean(r) !== state.compact) { state.compact = Boolean(r); $('a-preview-box').open = !r; }
   $('a-empty').hidden = Boolean(r);
   $('a-empty-title').textContent = t('a_empty_title');
   $('a-empty-body').textContent = t('a_empty_body');
@@ -586,7 +642,12 @@ function draw() {
   const verdict = !n ? t('a_clean') : !r.anonymized ? (n === 1 ? t('a_raw_one') : t('a_raw', { n: formatNumber(n) }))
     : n === 1 ? t('a_attention_one') : t('a_attention', { n: formatNumber(n) });
   $('a-verdict').textContent = verdict;
-  $('a-verdict').className = 'verdict ' + (n && open ? 'verdict-attention' : 'verdict-clean');
+  // Green only when the check shows nothing: a decision made is not a file verified.
+  $('a-verdict').className = 'verdict ' + (n ? 'verdict-attention' : 'verdict-clean');
+  const replace = decide.filter((row) => state.decide.get(row.key).replace).length;
+  const kept = decide.filter((row) => state.decide.get(row.key).ok).length;
+  $('a-tally').hidden = !n;
+  $('a-tally').textContent = n ? t('a_tally', { n: formatNumber(n), r: formatNumber(replace), k: formatNumber(kept), o: formatNumber(open) }) : '';
   $('a-explained').textContent = (hiddenOnly ? t('a_hidden_note', { n: formatNumber(hiddenOnly) }) + ' ' : '') +
     t('a_explained', { words: formatNumber(r.explained.common), numbers: formatNumber(r.explained.numbers) });
   renderWhy();

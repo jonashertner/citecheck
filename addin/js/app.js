@@ -7,7 +7,7 @@ import { checkDocument } from './check.js';
 import { parseBgeKey } from './keys.js';
 import * as word from './word.js';
 import * as anon from './anon-pane.js';
-import { LANGUAGES, courtName, formatDate, formatNumber, language, setLanguage, t } from './i18n.js';
+import { LANGUAGES, courtName, formatDate, formatDateShort, formatNumber, language, setLanguage, t } from './i18n.js';
 
 const INDEX_BASE = new URL('../index/', import.meta.url).href;
 // Where a decision can be read. Used for links only: the pane never requests it; a
@@ -167,6 +167,14 @@ function renderChrome() {
   $('privacy').textContent = anonMode ? t('a_privacy') : t('privacy');
   $('about-open').textContent = t('privacy_more');
   $('langs').setAttribute('aria-label', t('languages'));
+  // Below 360px a menu stands in for the four buttons (the stylesheet shows one or the other).
+  const menu = $('lang-select');
+  menu.setAttribute('aria-label', t('languages'));
+  if (!menu.options.length) {
+    for (const code of LANGUAGES) { const o = el('option', null, code.toUpperCase()); o.value = code; menu.append(o); }
+    menu.addEventListener('change', () => { setLanguage(menu.value); remember('language', menu.value); render(); });
+  }
+  menu.value = language();
   $('langs').replaceChildren(...LANGUAGES.map((code) => {
     const b = el('button', 'lang', code.toUpperCase());
     b.type = 'button';
@@ -217,6 +225,15 @@ function renderResults() {
   $('list').replaceChildren(...visible.map(renderFinding));
 }
 
+// The second line of a closed row: the result in short. "Gefunden · Bundesgericht · 17.01.2014";
+// "Weicht ab: Erwägung, Datum" names what differs; the rest says its first sentence.
+function compactLine(f, said) {
+  const row = f.rows && f.rows[0];
+  if (f.status === 'found' && row) return [t('found'), courtName(row), row.date ? formatDateShort(row.date) : null].filter(Boolean).join(' · ');
+  if (f.status === 'differs' && f.issues.length) return t('differs') + ': ' + [...new Set(f.issues.map((i) => t('cat_' + i.kind)))].join(', ');
+  return said[0] || '';
+}
+
 function renderFinding(f) {
   const open = f.id === state.open;
   const item = el('li', 'f f-' + f.status + (open ? ' f-open' : ''));
@@ -226,7 +243,7 @@ function renderFinding(f) {
   const head = el('button', 'f-head');
   head.type = 'button';
   head.setAttribute('aria-expanded', String(open));
-  head.append(mark(f.status), el('span', 'cite', f.text), el('span', 'f-line', said[0] || ''));
+  head.append(mark(f.status), el('span', 'cite', f.text), el('span', 'f-line', compactLine(f, said)));
   head.addEventListener('click', () => openFinding(open ? null : f.id, false));
   item.append(head);
   if (!open) return item;
@@ -236,7 +253,8 @@ function renderFinding(f) {
   const clean = (s) => s.replace(/[\u0000-\u0008\u000b-\u001f]/g, '');   // Word's footnote and comment marks
   context.append((f.context.before.length === 48 ? '… ' : '') + clean(f.context.before), el('mark', null, f.text), clean(f.context.after) + (f.context.after.length === 48 ? ' …' : ''));
   body.append(el('p', 'place', placeText(f)), context);
-  for (const sentence of said.slice(1)) body.append(el('p', 'say', sentence));
+  // The row's second line said it in short; open, every sentence (the first again only where it was short).
+  for (const sentence of (f.status === 'found' || f.status === 'differs' ? said : said.slice(1))) body.append(el('p', 'say', sentence));
   const readable = f.rows.filter((row) => row.id).slice(0, 3);
   if (readable.length) {
     const links = el('p', 'say open-links');

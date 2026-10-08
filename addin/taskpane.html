@@ -29,6 +29,7 @@
           <button type="button" class="mode-tab" id="mode-anon" role="tab" aria-controls="anon-mode">Anonymisierung</button>
         </div>
         <div class="langs" id="langs" role="group" aria-label="Sprache"></div>
+        <select class="lang-select" id="lang-select" aria-label="Sprache"></select>
       </div>
       <div id="cite-head">
       <p class="list-line" id="list-line" aria-live="polite"></p>
@@ -44,7 +45,11 @@
       </div>
       <div id="anon-head" hidden>
         <p class="purpose" id="a-purpose"></p>
-        <p class="preview"><span id="a-preview"></span> <a id="a-feedback" href="https://github.com/jonashertner/citecheck/issues" target="_blank" rel="noopener noreferrer"></a></p>
+        <p class="scope" id="a-scope" hidden></p>
+        <details class="preview" id="a-preview-box" open>
+          <summary id="a-preview-label"></summary>
+          <span id="a-preview"></span> <a id="a-feedback" href="https://github.com/jonashertner/citecheck/issues" target="_blank" rel="noopener noreferrer"></a>
+        </details>
         <div class="actions">
           <button type="button" class="primary" id="a-check" disabled></button>
         </div>
@@ -93,6 +98,7 @@
       <p class="alert" id="a-alert" role="alert" hidden></p>
       <section class="summary" id="a-summary" hidden>
         <p class="verdict" id="a-verdict" aria-live="polite"></p>
+        <p class="tally" id="a-tally"></p>
         <p class="explained"><span id="a-explained"></span> <button type="button" class="link" id="a-why-open" aria-expanded="false" aria-controls="a-why"></button></p>
         <dl class="why" id="a-why" hidden></dl>
       </section>
@@ -114,7 +120,10 @@
           <select id="a-style"></select>
         </div>
         <button type="button" class="primary" id="a-copy"></button>
-        <p class="copy-note" id="a-copy-note"></p>
+        <details class="removed">
+          <summary id="a-removed-title"></summary>
+          <p class="copy-note" id="a-copy-note"></p>
+        </details>
         <p class="copy-result" id="a-copy-result" role="status" hidden></p>
       </section>
     </div>
