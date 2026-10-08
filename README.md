@@ -63,8 +63,11 @@ or number is explained when it is
   ruling anonymizes itself (counsel written as B.________) is not explained;
 - **a placeholder**: A.________, [...], X.
 
-Everything else is shown, grouped: "Hans Müller", "Müllers" and "MÜLLER" are one
-entry with every place it stands. A recognised identifier is shown with its
+Everything else is shown, grouped by person, not by word: "Hans Müller",
+"HANS MÜLLER", "H. Müller" and "Hans" are one entry with every place it stands,
+and "Anna Müller" is another. A name written alone ("Müller", "Müllers") goes to
+the one person it fits; where it fits several, it gets an entry of its own and
+the clerk chooses the letter, for all places or place by place. A recognised identifier is shown with its
 label even when its parts are common words: AHV number (check digit verified),
 IBAN, phone number, e-mail address, social media profile, street address,
 number plate, land parcel, date of birth, insured-person or policy number,
@@ -80,11 +83,14 @@ The clerk ticks what to replace; a person gets one letter wherever and however
 the name is written (letters already used by the document are skipped).
 **"Create anonymised copy"** writes a new `.docx`:
 
-- every ticked form replaced, also where Word split it across formatting runs;
+- every ticked place replaced as the name is written, with its initial and both
+  halves of a double name ("H. Müller", "Müller-Meier"), also where Word split it
+  across formatting runs; a genitive keeps its s ("A.________s Anwalt");
 - tracked changes accepted, deletions gone; comments, hidden text, document
   properties, the page thumbnail, custom XML, document variables and the
   template path removed;
-- the copy is read back and checked like any document; only then is it opened
+- the copy is read back and checked like any document, including for an initial
+  or a name left next to a placeholder ("H. A.________"); only then is it opened
   as a new Word document (or offered as a download), with the result stated.
 
 The open document is never changed.

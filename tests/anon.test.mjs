@@ -47,8 +47,8 @@ test('one person, every form: Müller, Müllers, MÜLLER, in a comment and in a 
   assert.equal(e.occurrences.length, 5);
   assert.equal(e.occurrences.filter((o) => !o.visible).length, 2);
   assert.ok(entry(r, 'Weber').hidden);
-  const hans = entry(r, 'Hans');
-  assert.ok(r.persons.some((p) => p.includes(hans.id) && p.includes(e.id)));
+  const hans = r.people.find((p) => p.name === 'Hans Müller');
+  assert.ok(hans, 'Hans Müller is one person');
 });
 
 test('the document makes public: bench, counsel, authors, case names; common words stay out', () => {
@@ -115,4 +115,18 @@ test('a role in a comment makes no one public: the name stays shown in the text 
   const e = entry(run(7), 'Krasniqi');
   assert.ok(e, 'Krasniqi is shown');
   assert.equal(e.occurrences.length, 2);
+});
+
+test('people, not words: one row per person, the full name as written, ambiguous mentions apart', () => {
+  const r = run(8);
+  const names = r.people.map((p) => [p.name, p.mentions.map((m) => m.text)]);
+  assert.deepEqual(names, [
+    ['Anna Müller', ['Anna Müller', 'Anna Müller-Keller']],
+    ['Hans Müller', ['Hans Müller', 'HANS MÜLLER', 'H. Müller', 'Hans']],
+    ['Müller-Meier', ['Müller-Meier']],
+  ]);
+  // "Müller" alone and "Müllers" fit three people: the clerk decides; the genitive s stays
+  assert.deepEqual(r.ambiguous.map((a) => [a.name, a.candidates, a.mentions.map((m) => m.text)]),
+    [['Müller', [0, 1, 2], ['Müller', 'Müller']]]);
+  assert.ok(r.explained.counsel.includes('Kunz'), 'RA is counsel');
 });

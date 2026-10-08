@@ -162,6 +162,45 @@ class CorpusSource:
 
 
 # ── build ─────────────────────────────────────────────────────────────────
+_FEDERAL_KEY = re.compile(r"^\d[A-Z]{1,2}_\d{1,5}/\d{4}$")
+_FEDERAL_COURTS = {"bger", "bge"}
+
+
+def _year_only(date: str) -> bool:
+    return bool(re.match(r"^\d{4}(?:-01-01)?$", date))
+
+
+def _drop_duplicates(lines: dict[tuple, dict]) -> dict[str, int]:
+    """Two kinds of line say nothing the list does not already say, and make the pane
+    report "several decisions carry this number":
+      a cantonal court's line under a federal docket with the federal judgment's date
+        (a canton re-publishing the Federal Supreme Court's judgment on its portal);
+      a line dated by its year only, next to a line of the same court and key dated in
+        that year (the same decision from two sources).
+    Their Erwägung numbers go to the line that stays."""
+    by_key: dict[str, list[tuple]] = {}
+    for k in lines:
+        by_key.setdefault(k[0], []).append(k)
+    dropped = {"cantonal_copy": 0, "year_only": 0}
+    for key, ks in by_key.items():
+        if len(ks) < 2:
+            continue
+        for k in ks:
+            _, court, canton, date = k
+            keep = None
+            if _FEDERAL_KEY.match(key) and court not in _FEDERAL_COURTS and canton not in ("", "CH"):
+                keep = next((o for o in ks if o[1] in _FEDERAL_COURTS and o[3] == date and o in lines), None)
+                kind = "cantonal_copy"
+            elif _year_only(date):
+                keep = next((o for o in ks if o[1] == court and o[2] == canton and o[3][:4] == date[:4]
+                             and not _year_only(o[3]) and o in lines), None)
+                kind = "year_only"
+            if keep is not None and k in lines:
+                lines[keep]["enums"].update(lines.pop(k)["enums"])
+                dropped[kind] += 1
+    return dropped
+
+
 def build(source, out_dir: Path, *, sample: bool = False, log=lambda m: print(m, file=sys.stderr, flush=True)) -> dict:
     if isinstance(source, Path):
         source = PackSource(source)
@@ -205,6 +244,9 @@ def build(source, out_dir: Path, *, sample: bool = False, log=lambda m: print(m,
                 add(key, court, canton, date, decision_id, canonical)
     source.close()
 
+    dropped = _drop_duplicates(lines)
+    log(f"dropped {dropped['cantonal_copy']:,} cantonal copies of federal judgments, "
+        f"{dropped['year_only']:,} year-only twins of dated lines")
     log(f"sorting {len(lines):,} lines")
     ordered = sorted(lines.items(), key=lambda kv: (kv[0][0].encode("utf-8"), kv[0][1:]))
     clean = lambda s: re.sub(r"[\t\n\r]", " ", s or "")

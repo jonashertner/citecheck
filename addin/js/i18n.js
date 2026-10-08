@@ -30,6 +30,7 @@ const STRINGS = {
     pin_absent: 'Eine E. {pin} führt die Liste für diesen Entscheid nicht. Erfasst: {nearby}.',
     pin_no_structure: 'E. {pin} nicht prüfbar: Zu diesem Entscheid kennt die Liste keine Erwägungsnummern.',
     pin_parent_only: 'E. {pin} ist nicht einzeln erfasst; E. {parent} ist vorhanden.',
+    page_inside: 'S. {pages} liegt im Entscheid (S. {first}–{last}).', languages: 'Sprache',
     page_outside: 'S. {pages} liegt ausserhalb des Entscheids (S. {first}–{last}).', page_before: 'S. {pages} liegt vor dem Entscheid (beginnt auf S. {first}).',
     date_differs: 'Datum im Entwurf: {written}. In der Liste: {listed}.',
     court_differs: 'Nicht beim genannten Gericht. Unter dieser Nummer führt die Liste: {rows}.',
@@ -53,7 +54,7 @@ const STRINGS = {
     about_4: 'Geprüft wird, ob es den Entscheid und die Erwägung gibt. Ob der Entscheid die Aussage im Entwurf trägt, prüft das Add-in nicht.',
     about_list: 'Liste', about_sha: 'SHA-256', about_source: 'Quellcode und Lizenz (MIT)', close: 'Schliessen',
     court_bge: 'BGE (amtliche Sammlung)', court_bge_egmr: 'BGE (EGMR)', court_bger: 'Bundesgericht', court_bvger: 'Bundesverwaltungsgericht',
-    court_bstger: 'Bundesstrafgericht', court_bpatger: 'Bundespatentgericht', court_canton: 'Kanton {canton} ({code})',
+    court_bstger: 'Bundesstrafgericht', court_bpatger: 'Bundespatentgericht', court_canton: 'Kanton {canton}',
   },
   fr: {
     title: 'Contrôle des citations',
@@ -84,6 +85,7 @@ const STRINGS = {
     pin_absent: 'La liste ne connaît pas de consid. {pin} pour cette décision. Répertoriés: {nearby}.',
     pin_no_structure: 'Consid. {pin} non contrôlable: la liste ne connaît pas les considérants de cette décision.',
     pin_parent_only: 'Le consid. {pin} n’est pas répertorié séparément; le consid. {parent} existe.',
+    page_inside: 'La p. {pages} est dans la décision (p. {first}–{last}).', languages: 'Langue',
     page_outside: 'La p. {pages} est hors de la décision (p. {first}–{last}).', page_before: 'La p. {pages} précède la décision (début p. {first}).',
     date_differs: 'Date dans le projet: {written}. Dans la liste: {listed}.',
     court_differs: 'Pas auprès du tribunal indiqué. Sous ce numéro, la liste contient: {rows}.',
@@ -107,7 +109,7 @@ const STRINGS = {
     about_4: 'Le contrôle porte sur l’existence de la décision et du considérant, non sur la question de savoir si la décision étaye le projet.',
     about_list: 'Liste', about_sha: 'SHA-256', about_source: 'Code source et licence (MIT)', close: 'Fermer',
     court_bge: 'ATF (recueil officiel)', court_bge_egmr: 'ATF (CourEDH)', court_bger: 'Tribunal fédéral', court_bvger: 'Tribunal administratif fédéral',
-    court_bstger: 'Tribunal pénal fédéral', court_bpatger: 'Tribunal fédéral des brevets', court_canton: 'Canton {canton} ({code})',
+    court_bstger: 'Tribunal pénal fédéral', court_bpatger: 'Tribunal fédéral des brevets', court_canton: 'Canton {canton}',
   },
   it: {
     title: 'Controllo delle citazioni',
@@ -138,6 +140,7 @@ const STRINGS = {
     pin_absent: 'La lista non conosce un consid. {pin} per questa decisione. Registrati: {nearby}.',
     pin_no_structure: 'Consid. {pin} non controllabile: la lista non conosce i considerandi di questa decisione.',
     pin_parent_only: 'Il consid. {pin} non è registrato separatamente; il consid. {parent} esiste.',
+    page_inside: 'La pag. {pages} è nella decisione (pag. {first}–{last}).', languages: 'Lingua',
     page_outside: 'La pag. {pages} è fuori dalla decisione (pag. {first}–{last}).', page_before: 'La pag. {pages} precede la decisione (inizio pag. {first}).',
     date_differs: 'Data nel progetto: {written}. Nella lista: {listed}.',
     court_differs: 'Non presso il tribunale indicato. Sotto questo numero la lista contiene: {rows}.',
@@ -161,7 +164,7 @@ const STRINGS = {
     about_4: 'Si controlla se la decisione e il considerando esistono, non se la decisione sostiene quanto scritto nel progetto.',
     about_list: 'Lista', about_sha: 'SHA-256', about_source: 'Codice sorgente e licenza (MIT)', close: 'Chiudere',
     court_bge: 'DTF (raccolta ufficiale)', court_bge_egmr: 'DTF (CorteEDU)', court_bger: 'Tribunale federale', court_bvger: 'Tribunale amministrativo federale',
-    court_bstger: 'Tribunale penale federale', court_bpatger: 'Tribunale federale dei brevetti', court_canton: 'Cantone {canton} ({code})',
+    court_bstger: 'Tribunale penale federale', court_bpatger: 'Tribunale federale dei brevetti', court_canton: 'Cantone {canton}',
   },
   en: {
     title: 'Cite check',
@@ -192,6 +195,7 @@ const STRINGS = {
     pin_absent: 'The list has no E. {pin} for this decision. Listed: {nearby}.',
     pin_no_structure: 'E. {pin} cannot be checked: the list has no Erwägung numbers for this decision.',
     pin_parent_only: 'E. {pin} is not listed on its own; E. {parent} exists.',
+    page_inside: 'P. {pages} lies within the decision (pp. {first}–{last}).', languages: 'Language',
     page_outside: 'P. {pages} lies outside the decision (pp. {first}–{last}).', page_before: 'P. {pages} lies before the decision (starts on p. {first}).',
     date_differs: 'Date in the draft: {written}. In the list: {listed}.',
     court_differs: 'Not at the court named. Under this number the list has: {rows}.',
@@ -215,7 +219,7 @@ const STRINGS = {
     about_4: 'The check is whether the decision and the Erwägung exist, not whether the decision supports what the draft says.',
     about_list: 'List', about_sha: 'SHA-256', about_source: 'Source code and licence (MIT)', close: 'Close',
     court_bge: 'BGE (official reports)', court_bge_egmr: 'BGE (ECtHR)', court_bger: 'Federal Supreme Court', court_bvger: 'Federal Administrative Court',
-    court_bstger: 'Federal Criminal Court', court_bpatger: 'Federal Patent Court', court_canton: 'Canton {canton} ({code})',
+    court_bstger: 'Federal Criminal Court', court_bpatger: 'Federal Patent Court', court_canton: 'Canton {canton}',
   },
 };
 
@@ -230,8 +234,8 @@ const ANON = {
     a_empty_title: 'Noch nichts geprüft',
     a_empty_body: 'Jedes Wort und jede Zahl der Datei, auch in Kommentaren, Änderungen und Eigenschaften, ist entweder erklärt oder steht hier: erklärt ist, was in veröffentlichten Entscheiden üblich ist, was das Urteil selbst öffentlich macht (Gericht, Vertretung, Lehre) und jeder Platzhalter. Was übrig bleibt, entscheiden Sie.',
     a_clean: 'Nichts gefunden, das eine Person erkennbar macht.',
-    a_attention: '{n} Stellen zum Ansehen.', a_attention_one: 'Eine Stelle zum Ansehen.',
-    a_raw: 'Noch nicht anonymisiert: {n} Stellen zu ersetzen.', a_raw_one: 'Noch nicht anonymisiert: eine Stelle zu ersetzen.',
+    a_attention: '{n} Angaben zum Ansehen.', a_attention_one: 'Eine Angabe zum Ansehen.',
+    a_raw: 'Noch nicht anonymisiert: {n} Angaben zu ersetzen.', a_raw_one: 'Noch nicht anonymisiert: eine Angabe zu ersetzen.',
     a_explained: '{words} Wörter und {numbers} Zahlen sind erklärt.', a_why: 'Warum?',
     a_in_text: 'Im Text', a_in_file: 'In der Datei verborgen', a_in_file_note: 'Die Kopie enthält das nicht mehr.',
     a_select_all: 'Alle ersetzen', a_select_none: 'Keine ersetzen',
@@ -256,7 +260,7 @@ const ANON = {
     lab_ahv: 'AHV-Nummer', lab_iban: 'IBAN', lab_phone: 'Telefonnummer', lab_email: 'E-Mail-Adresse', lab_profile: 'Profil in sozialen Medien',
     lab_address: 'Adresse', lab_plate: 'Kontrollschild', lab_parcel: 'Parzelle', lab_birthdate: 'Geburtsdatum',
     lab_insured: 'Versicherten- oder Policennummer', lab_zemis: 'ZEMIS-Nummer', lab_document: 'Ausweisnummer', lab_account: 'Kontonummer',
-    lab_word: 'Kein übliches Wort', lab_person: 'Steht zusammen, wohl eine Person', lab_number: 'Keine übliche Zahl',
+    lab_word: 'Kein übliches Wort', lab_person: 'Steht zusammen, wohl eine Person', lab_ambiguous: 'Passt zu mehreren Personen: {list}. Den Buchstaben wählen, für alle Stellen oder je Stelle', lab_number: 'Keine übliche Zahl',
     part_body: 'Text', part_footnote: 'Fussnote', part_endnote: 'Endnote', part_header: 'Kopfzeile', part_footer: 'Fusszeile',
     part_comment: 'Kommentar', part_deleted: 'Gelöschter Text (Änderungen)', part_hidden: 'Ausgeblendeter Text', part_field: 'Feldfunktion',
     part_alt: 'Bildbeschreibung', part_property: 'Dokumenteigenschaft', part_custom: 'Daten einer Fachanwendung', part_link: 'Linkziel', part_filename: 'Dateiname',
@@ -270,8 +274,8 @@ const ANON = {
     a_empty_title: 'Rien n’a encore été contrôlé',
     a_empty_body: 'Chaque mot et chaque nombre du fichier, y compris dans les commentaires, les modifications et les propriétés, est soit expliqué, soit affiché ici: est expliqué ce qui est courant dans les décisions publiées, ce que l’arrêt rend lui-même public (tribunal, mandataires, doctrine) et chaque espace réservé. Vous décidez du reste.',
     a_clean: 'Rien trouvé qui permette d’identifier une personne.',
-    a_attention: '{n} passages à examiner.', a_attention_one: 'Un passage à examiner.',
-    a_raw: 'Pas encore anonymisé: {n} passages à remplacer.', a_raw_one: 'Pas encore anonymisé: un passage à remplacer.',
+    a_attention: '{n} indications à examiner.', a_attention_one: 'Une indication à examiner.',
+    a_raw: 'Pas encore anonymisé: {n} indications à remplacer.', a_raw_one: 'Pas encore anonymisé: une indication à remplacer.',
     a_explained: '{words} mots et {numbers} nombres sont expliqués.', a_why: 'Pourquoi?',
     a_in_text: 'Dans le texte', a_in_file: 'Caché dans le fichier', a_in_file_note: 'La copie ne le contient plus.',
     a_select_all: 'Tout remplacer', a_select_none: 'Ne rien remplacer',
@@ -296,7 +300,7 @@ const ANON = {
     lab_ahv: 'Numéro AVS', lab_iban: 'IBAN', lab_phone: 'Numéro de téléphone', lab_email: 'Adresse e-mail', lab_profile: 'Profil sur un réseau social',
     lab_address: 'Adresse', lab_plate: 'Plaque d’immatriculation', lab_parcel: 'Parcelle', lab_birthdate: 'Date de naissance',
     lab_insured: 'Numéro d’assuré ou de police', lab_zemis: 'Numéro SYMIC', lab_document: 'Numéro de pièce d’identité', lab_account: 'Numéro de compte',
-    lab_word: 'Pas un mot courant', lab_person: 'Écrits ensemble, sans doute une personne', lab_number: 'Pas un nombre courant',
+    lab_word: 'Pas un mot courant', lab_person: 'Écrits ensemble, sans doute une personne', lab_ambiguous: 'Peut désigner plusieurs personnes: {list}. Choisir la lettre, pour tous les passages ou pour chacun', lab_number: 'Pas un nombre courant',
     part_body: 'Texte', part_footnote: 'Note de bas de page', part_endnote: 'Note de fin', part_header: 'En-tête', part_footer: 'Pied de page',
     part_comment: 'Commentaire', part_deleted: 'Texte supprimé (modifications)', part_hidden: 'Texte masqué', part_field: 'Code de champ',
     part_alt: 'Description d’image', part_property: 'Propriété du document', part_custom: 'Données d’une application métier', part_link: 'Cible de lien', part_filename: 'Nom du fichier',
@@ -310,8 +314,8 @@ const ANON = {
     a_empty_title: 'Ancora nulla di controllato',
     a_empty_body: 'Ogni parola e ogni numero del file, anche nei commenti, nelle revisioni e nelle proprietà, è spiegato oppure figura qui: è spiegato ciò che è usuale nelle decisioni pubblicate, ciò che la sentenza stessa rende pubblico (tribunale, patrocinatori, dottrina) e ogni segnaposto. Il resto lo decide Lei.',
     a_clean: 'Nulla trovato che renda identificabile una persona.',
-    a_attention: '{n} passaggi da esaminare.', a_attention_one: 'Un passaggio da esaminare.',
-    a_raw: 'Non ancora anonimizzato: {n} passaggi da sostituire.', a_raw_one: 'Non ancora anonimizzato: un passaggio da sostituire.',
+    a_attention: '{n} indicazioni da esaminare.', a_attention_one: 'Un’indicazione da esaminare.',
+    a_raw: 'Non ancora anonimizzato: {n} indicazioni da sostituire.', a_raw_one: 'Non ancora anonimizzato: un’indicazione da sostituire.',
     a_explained: '{words} parole e {numbers} numeri sono spiegati.', a_why: 'Perché?',
     a_in_text: 'Nel testo', a_in_file: 'Nascosto nel file', a_in_file_note: 'La copia non lo contiene più.',
     a_select_all: 'Sostituire tutto', a_select_none: 'Non sostituire nulla',
@@ -336,7 +340,7 @@ const ANON = {
     lab_ahv: 'Numero AVS', lab_iban: 'IBAN', lab_phone: 'Numero di telefono', lab_email: 'Indirizzo e-mail', lab_profile: 'Profilo su un social network',
     lab_address: 'Indirizzo', lab_plate: 'Targa', lab_parcel: 'Particella', lab_birthdate: 'Data di nascita',
     lab_insured: 'Numero d’assicurato o di polizza', lab_zemis: 'Numero SIMIC', lab_document: 'Numero di documento d’identità', lab_account: 'Numero di conto',
-    lab_word: 'Non una parola usuale', lab_person: 'Scritti insieme, probabilmente una persona', lab_number: 'Non un numero usuale',
+    lab_word: 'Non una parola usuale', lab_person: 'Scritti insieme, probabilmente una persona', lab_ambiguous: 'Può indicare più persone: {list}. Scegliere la lettera, per tutti i passaggi o per ciascuno', lab_number: 'Non un numero usuale',
     part_body: 'Testo', part_footnote: 'Nota a piè di pagina', part_endnote: 'Nota di chiusura', part_header: 'Intestazione', part_footer: 'Piè di pagina',
     part_comment: 'Commento', part_deleted: 'Testo eliminato (revisioni)', part_hidden: 'Testo nascosto', part_field: 'Codice di campo',
     part_alt: 'Descrizione dell’immagine', part_property: 'Proprietà del documento', part_custom: 'Dati di un’applicazione specialistica', part_link: 'Destinazione del link', part_filename: 'Nome del file',
@@ -350,8 +354,8 @@ const ANON = {
     a_empty_title: 'Nothing checked yet',
     a_empty_body: 'Every word and number in the file, including comments, tracked changes and properties, is either explained or listed here: explained is what is usual in published rulings, what the ruling itself makes public (court, counsel, literature) and every placeholder. You decide the rest.',
     a_clean: 'Nothing found that makes a person identifiable.',
-    a_attention: '{n} places to look at.', a_attention_one: 'One place to look at.',
-    a_raw: 'Not anonymised yet: {n} places to replace.', a_raw_one: 'Not anonymised yet: one place to replace.',
+    a_attention: '{n} items to look at.', a_attention_one: 'One item to look at.',
+    a_raw: 'Not anonymised yet: {n} items to replace.', a_raw_one: 'Not anonymised yet: one item to replace.',
     a_explained: '{words} words and {numbers} numbers are explained.', a_why: 'Why?',
     a_in_text: 'In the text', a_in_file: 'Hidden in the file', a_in_file_note: 'The copy no longer contains this.',
     a_select_all: 'Replace all', a_select_none: 'Replace none',
@@ -376,7 +380,7 @@ const ANON = {
     lab_ahv: 'AHV/AVS number', lab_iban: 'IBAN', lab_phone: 'Phone number', lab_email: 'E-mail address', lab_profile: 'Social media profile',
     lab_address: 'Address', lab_plate: 'Number plate', lab_parcel: 'Land parcel', lab_birthdate: 'Date of birth',
     lab_insured: 'Insured-person or policy number', lab_zemis: 'ZEMIS number', lab_document: 'ID document number', lab_account: 'Account number',
-    lab_word: 'Not a usual word', lab_person: 'Written together, probably a person', lab_number: 'Not a usual number',
+    lab_word: 'Not a usual word', lab_person: 'Written together, probably a person', lab_ambiguous: 'Fits more than one person: {list}. Choose the letter, for all places or place by place', lab_number: 'Not a usual number',
     part_body: 'Text', part_footnote: 'Footnote', part_endnote: 'Endnote', part_header: 'Header', part_footer: 'Footer',
     part_comment: 'Comment', part_deleted: 'Deleted text (tracked changes)', part_hidden: 'Hidden text', part_field: 'Field code',
     part_alt: 'Image description', part_property: 'Document property', part_custom: 'Data of a case-management system', part_link: 'Link target', part_filename: 'File name',
@@ -402,10 +406,11 @@ export function t(key, values = {}) {
   return template.replace(/\{(\w+)\}/g, (all, name) => (name in values ? String(values[name]) : all));
 }
 
-export function formatDate(iso) {
+// A listed 1 January is a year only (see check.js); a date the draft writes is a date.
+export function formatDate(iso, { written = false } = {}) {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || '');
   if (!m) return iso || '';
-  if (m[2] === '01' && m[3] === '01') return m[1];        // year only (see check.js)
+  if (!written && m[2] === '01' && m[3] === '01') return m[1];
   const date = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
   return new Intl.DateTimeFormat(LOCALES[current], { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(date);
 }
@@ -417,5 +422,9 @@ export function formatNumber(n) {
 export function courtName(row) {
   const key = 'court_' + row.court;
   if (STRINGS.de[key]) return t(key);
-  return row.canton && row.canton !== 'CH' ? t('court_canton', { canton: row.canton, code: row.court }) : row.court;
+  if (!row.canton || row.canton === 'CH') return row.court;
+  // The court's own name where its code carries one ("zh_obergericht": Obergericht);
+  // codes for a canton's whole portal ("ge_gerichte") name no court.
+  const own = /^[a-z]{2}_([a-z]+(?:gericht|kommission|aufsicht|rat))(?:_|$)/.exec(row.court);
+  return t('court_canton', { canton: row.canton }) + (own ? ', ' + own[1][0].toUpperCase() + own[1].slice(1) : '');
 }

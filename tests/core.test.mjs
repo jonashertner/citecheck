@@ -150,3 +150,16 @@ test('every occurrence is placed; repeated text gets its own nth', () => {
   assert.ok(r.findings[0].position < r.findings[1].position && r.findings[1].position < r.findings[2].position);
   assert.deepEqual(r.counts, { found: 2, differs: 0, missing: 1, unchecked: 0 });
 });
+
+test('report 2026-10-08: phone numbers are no references; page after a comma and inside the decision; the top level from sub-numbers', () => {
+  // C1: the ends of phone numbers
+  assert.deepEqual(check('erreichbar unter 044 123 45 67', 'Tel. 031 322 21 11, Fax +41 44 123 45 67, Postfach 123 45 67.').findings, []);
+  // C6, C7: "320, 324" and "S. 118" are checked, and a page inside says so
+  const inside = only('Vgl. BGE 140 III 115, 118.');
+  assert.deepEqual(inside.notes.find((n) => n.kind === 'page_inside'), { kind: 'page_inside', written: [118], range: { first: 115, last: 133 } });
+  assert.deepEqual(only('BGE 140 III 115, 140').issues[0], { kind: 'page', written: [140], range: { first: 115, last: 133 } });
+  assert.equal(only('BGE 140 III 115, 2014').issues.length, 0);       // a year is no page
+  // C4: a number known only through its sub-numbers is on the top level
+  const absent = only('Urteil A-4843/2020 E. 99');
+  assert.ok(absent.issues[0].nearby.includes('1'), JSON.stringify(absent.issues[0].nearby));
+});

@@ -111,7 +111,7 @@ function messages(f) {
         ? t('page_before', { pages: issue.written.join(', '), first: issue.range.first })
         : t('page_outside', { pages: issue.written.join(', '), first: issue.range.first, last: issue.range.last }));
     }
-    if (issue.kind === 'date') out.push(t('date_differs', { written: formatDate(issue.written), listed: issue.listed.map(formatDate).join(', ') }));
+    if (issue.kind === 'date') out.push(t('date_differs', { written: formatDate(issue.written, { written: true }), listed: issue.listed.map((d) => formatDate(d)).join(', ') }));
     if (issue.kind === 'court') out.push(t('court_differs', { rows: issue.rows.map(rowText).join('; ') }));
   }
   if (f.status === 'unchecked') out.push(t(f.notes[0].kind === 'collection' ? 'collection' : 'unknown_shape'));
@@ -124,6 +124,7 @@ function messages(f) {
     if (note.kind === 'pinpoint_no_structure') out.push(t('pin_no_structure', { pin: note.written }));
     if (note.kind === 'pinpoint_parent_only') out.push(t('pin_parent_only', { pin: note.written, parent: note.parent }));
     if (note.kind === 'several') out.push(t('several', { rows: note.rows.map(rowText).join('; ') }));
+    if (note.kind === 'page_inside') out.push(t('page_inside', { pages: note.written.join(', '), first: note.range.first, last: note.range.last }));
   }
   return out;
 }
@@ -163,6 +164,7 @@ function renderChrome() {
   $('file-line').textContent = state.file ? t('file_loaded', { name: state.file.name, n: formatNumber(state.file.paragraphs.length) }) : t('file_hint');
   $('privacy').textContent = anonMode ? t('a_privacy') : t('privacy');
   $('about-open').textContent = t('privacy_more');
+  $('langs').setAttribute('aria-label', t('languages'));
   $('langs').replaceChildren(...LANGUAGES.map((code) => {
     const b = el('button', 'lang', code.toUpperCase());
     b.type = 'button';
@@ -347,6 +349,7 @@ async function loadList(refresh) {
     });
     state.index = opened.index;
     state.manifest = opened.manifest;
+    if (refresh && !opened.stale) state.askedAt = Date.now();
     const days = Math.floor((Date.now() - Date.parse(opened.manifest.generated)) / 86400000);
     if (opened.stale) state.listNote = { key: 'list_stale' };
     else if (!opened.persisted) state.listNote = { key: 'list_memory' };
@@ -363,12 +366,16 @@ async function loadList(refresh) {
 async function runCheck() {
   // Every check first asks whether a newer list exists (a few KB); the list itself
   // is downloaded only when it changed. Unreachable: check with the list at hand.
-  try {
-    const latest = await fetchManifest(INDEX_BASE);
-    if (!state.manifest || latest.sha256 !== state.manifest.sha256) await loadList(true);
-    else if (state.listNote && state.listNote.key === 'list_stale') state.listNote = null;
-  } catch {
-    if (state.index) state.listNote = { key: 'list_stale' };
+  // Asked in the last ten minutes: the answer stands.
+  if (!state.index || Date.now() - (state.askedAt || 0) > 600000) {
+    try {
+      const latest = await fetchManifest(INDEX_BASE);
+      state.askedAt = Date.now();
+      if (!state.manifest || latest.sha256 !== state.manifest.sha256) await loadList(true);
+      else if (state.listNote && state.listNote.key === 'list_stale') state.listNote = null;
+    } catch {
+      if (state.index) state.listNote = { key: 'list_stale' };
+    }
   }
   if (!state.index) return;
   state.busy = 'check';
@@ -421,7 +428,9 @@ async function start() {
   }
   state.host = info && info.host && word.inWord() ? 'word' : 'browser';
   const office = state.host === 'word' && Office.context ? Office.context.displayLanguage : null;
-  setLanguage(recall('language') || office || navigator.language);
+  // A link may name the language (?lang=fr, from the install page); a choice made in the pane wins.
+  const linked = new URLSearchParams(location.search).get('lang');
+  setLanguage(recall('language') || (LANGUAGES.includes(linked) ? linked : null) || office || navigator.language);
 
   // The ribbon has a button per check; "Anonymisierung prüfen" opens taskpane.html?mode=anon.
   const asked = new URLSearchParams(location.search).get('mode');

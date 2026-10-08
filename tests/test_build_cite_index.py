@@ -69,3 +69,21 @@ def test_the_nightly_corpus_gives_the_same_list_as_the_pack(tmp_path):
     assert from_corpus["source"] == "OpenCaseLaw nightly corpus export"
     assert from_corpus["courts"] == from_pack["courts"]
     assert "vd_gerichte" in from_corpus["courts"]        # the court missing from the export came from decisions.db
+
+
+def test_a_canton_republishing_a_federal_judgment_and_a_year_only_twin_are_dropped():
+    from build_cite_index import _drop_duplicates
+    lines = {
+        ("4A_219/2020", "bger", "CH", "2021-03-12"): {"enums": {"2"}, "id": "bger_4A_219_2020"},
+        ("4A_219/2020", "ge_gerichte", "GE", "2021-03-12"): {"enums": {"3"}, "id": "ge_gerichte_4A_219_2020"},
+        ("5A_1/2019", "zh_obergericht", "ZH", "2019-05-02"): {"enums": set(), "id": "zh"},      # another date: stays
+        ("5A_1/2019", "bger", "CH", "2019-02-01"): {"enums": set(), "id": "bger"},
+        ("BGE 136 III 0552", "bge", "CH", "2010-01-01"): {"enums": {"4.2"}, "id": "a"},
+        ("BGE 136 III 0552", "bge", "CH", "2010-10-08"): {"enums": {"4.1"}, "id": "b"},
+        ("BGE 090 II 0001", "bge", "CH", "1964-01-01"): {"enums": set(), "id": "c"},          # alone: stays
+    }
+    assert _drop_duplicates(lines) == {"cantonal_copy": 1, "year_only": 1}
+    assert lines[("4A_219/2020", "bger", "CH", "2021-03-12")]["enums"] == {"2", "3"}
+    assert lines[("BGE 136 III 0552", "bge", "CH", "2010-10-08")]["enums"] == {"4.1", "4.2"}
+    assert ("5A_1/2019", "zh_obergericht", "ZH", "2019-05-02") in lines
+    assert len(lines) == 5

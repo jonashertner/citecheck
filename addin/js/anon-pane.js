@@ -27,7 +27,7 @@ const state = {
   read: null,            // {parts, notes} of the file last checked
   checked: null,         // the bytes of that file: the copy is made from exactly these
   result: null,
-  rows: [],              // what the clerk decides on: one per person, identifier or number
+  rows: [],              // what the clerk decides on: one per person, ambiguous name, identifier or number
   decide: new Map(),     // row key -> {replace, ok, placeholder}
   style: 'long',
   open: null,
@@ -49,62 +49,91 @@ function say(message) {
 
 const letter = (i) => (state.style === 'long' ? i + '.________' : i + '.');
 
-// ── from the check's entries to the rows the clerk decides on ─────────────
+// ── from the check's result to the rows the clerk decides on ──────────────
+// One row per person (every way the name is written), per name that fits several
+// people, per identifier and per number.
 function buildRows(result, parts) {
-  const byId = new Map(result.entries.map((e) => [e.id, e]));
-  const inPerson = new Map();
-  for (const ids of result.persons) for (const id of ids) inPerson.set(id, ids);
-  const rows = [];
-  const done = new Set();
-  for (const e of result.entries) {
-    if (done.has(e.id)) continue;
-    const ids = inPerson.get(e.id) || [e.id];
-    ids.forEach((id) => done.add(id));
-    const entries = ids.map((id) => byId.get(id));
-    const occurrences = merge(entries.flatMap((x) => x.occurrences)
-      .map((o) => ({ ...o, kind: parts[o.part].where.part }))
-      .sort((a, b) => a.part - b.part || a.start - b.start), parts);
-    rows.push({
-      key: e.kind === 'word' ? 'p:' + entries.map((x) => x.key).sort().join('|') : e.key,
-      kind: e.kind,
-      label: e.label,
-      person: e.kind === 'word' && entries.length > 1,
-      forms: [...new Set(entries.flatMap((x) => x.forms))],
-      text: entries.map((x) => x.text).join(' '),
+  const placed = (o) => ({ ...o, kind: parts[o.part].where.part });
+  const words = result.entries.filter((e) => e.kind === 'word').flatMap((e) => e.occurrences);
+  // The forms serve field codes and link targets: the names as written and each word in them.
+  const formsOf = (mentions) => {
+    const forms = new Set(mentions.map((m) => m.text));
+    for (const m of mentions) {
+      for (const o of words) if (o.part === m.part && o.start >= m.start && o.end <= m.end) forms.add(o.text);
+    }
+    return [...forms];
+  };
+  const nameRow = (g, key) => {
+    const occurrences = g.mentions.map(placed);
+    return {
+      key,
+      kind: 'word',
+      label: null,
+      person: /[\s\-‑]/u.test(g.name),
+      text: g.name,
+      forms: formsOf(g.mentions),
+      variants: [...new Set(g.mentions.map((m) => m.text))].filter((x) => x !== g.name),
       removed: occurrences.every((o) => REMOVED.has(o.kind)),
       occurrences,
       hidden: occurrences.every((o) => !o.visible),
-    });
-  }
-  return rows;
+    };
+  };
+  // A key names the row across checks; two rows never share one.
+  const taken = new Set();
+  const keyOf = (base) => {
+    let key = base;
+    for (let n = 2; taken.has(key); n++) key = base + '#' + n;
+    taken.add(key);
+    return key;
+  };
+  const people = result.people.map((g) => nameRow(g, keyOf('p:' + fold(g.name))));
+  const ambiguous = result.ambiguous.map((g) => ({
+    ...nameRow(g, keyOf('m:' + fold(g.name))),
+    ambiguous: true,
+    candidates: g.candidates.map((i) => people[i].key),
+  }));
+  const others = result.entries.filter((e) => e.kind !== 'word').map((e) => {
+    const occurrences = e.occurrences.map(placed);
+    return {
+      key: e.key, kind: e.kind, label: e.label, person: false, text: e.text, forms: e.forms,
+      variants: e.forms.filter((f) => f !== e.text),
+      removed: occurrences.every((o) => REMOVED.has(o.kind)),
+      occurrences,
+      hidden: occurrences.every((o) => !o.visible),
+    };
+  });
+  const first = (r) => r.occurrences[0];
+  const byPlace = (x, y) => first(x).part - first(y).part || first(x).start - first(y).start;
+  return [
+    ...others.filter((r) => r.kind === 'identifier').sort(byPlace),
+    ...[...people, ...ambiguous, ...others.filter((r) => r.kind !== 'identifier')].sort(byPlace),
+  ];
 }
 
-// "Hans" and "Müller" side by side are one place, "Hans Müller".
-function merge(occurrences, parts) {
-  const out = [];
-  for (const o of occurrences) {
-    const last = out[out.length - 1];
-    const gap = last && last.part === o.part ? parts[o.part].text.slice(last.end, o.start) : null;
-    if (gap !== null && /^[ -\u2011]$/.test(gap)) {
-      last.text = parts[o.part].text.slice(last.start, o.end);
-      last.end = o.end;
-    } else {
-      out.push({ ...o });
-    }
-  }
-  return out;
+// A name that fits several people takes the letter of the first of them until the clerk
+// chooses, for the row or place by place ("Herr Müller" is A, "Frau Müller" is B).
+function placeAt(row, i) {
+  const d = state.decide.get(row.key);
+  return (d.each && d.each.get(i)) || placeholderOf(row);
+}
+
+function placeholderOf(row) {
+  const d = state.decide.get(row.key);
+  if (d.placeholder || !row.ambiguous) return d.placeholder;
+  const first = state.decide.get(row.candidates[0]);
+  return first ? first.placeholder : BLANK;
 }
 
 // Letters not used by the placeholders already in the document, in order of first appearance.
 function assignPlaceholders() {
   const used = new Set(Object.keys(state.result.placeholders).map((p) => p[0]));
-  for (const d of state.decide.values()) if (d.placeholder !== BLANK) used.add(d.placeholder[0]);   // kept from the last check
+  for (const d of state.decide.values()) if (d.placeholder && d.placeholder !== BLANK) used.add(d.placeholder[0]);   // kept from the last check
   const free = LETTERS.filter((l) => !used.has(l));
   let next = 0;
   for (const row of state.rows) {
     const d = state.decide.get(row.key);
-    if (d && d.placeholder) continue;
-    const placeholder = row.kind === 'word' ? letter(free[next++ % free.length] || 'X') : BLANK;
+    if (d && (d.placeholder || row.ambiguous)) continue;
+    const placeholder = row.ambiguous ? null : row.kind === 'word' ? letter(free[next++ % free.length] || 'X') : BLANK;
     state.decide.set(row.key, { replace: d ? d.replace : false, ok: d ? d.ok : false, placeholder });
   }
 }
@@ -112,7 +141,7 @@ function assignPlaceholders() {
 function restyle(style) {
   state.style = style;
   for (const d of state.decide.values()) {
-    if (d.placeholder !== BLANK) d.placeholder = letter(d.placeholder[0]);
+    if (d.placeholder && d.placeholder !== BLANK) d.placeholder = letter(d.placeholder[0]);
   }
 }
 
@@ -148,6 +177,11 @@ export async function runCheck() {
     const before = state.decide;
     state.rows = buildRows(state.result, state.read.parts);
     state.decide = new Map(state.rows.filter((r) => before.has(r.key)).map((r) => [r.key, before.get(r.key)]));
+    // Letters chosen place by place hold only while the places are the same.
+    for (const r of state.rows) {
+      const d = state.decide.get(r.key);
+      if (d && d.each && d.eachFor !== placesKey(r)) d.each = null;
+    }
     assignPlaceholders();
     state.copy = null;
     state.open = null;
@@ -183,22 +217,42 @@ async function makeCopy() {
       return;
     }
     const ticked = state.rows.filter((r) => state.decide.get(r.key).replace);
-    const replacements = ticked.map((r) => ({
-      placeholder: state.decide.get(r.key).placeholder,
-      forms: r.forms,
-      places: r.occurrences.filter((o) => o.visible).map((o) => {
+    const replacements = ticked.flatMap((r) => {
+      const byPlaceholder = new Map();
+      r.occurrences.forEach((o, i) => {
+        if (!o.visible) return;
         const w = state.read.parts[o.part].where;
-        return { file: w.file, seq: w.seq, start: o.start, end: o.end };
-      }),
-    }));
+        const placeholder = placeAt(r, i);
+        if (!byPlaceholder.has(placeholder)) byPlaceholder.set(placeholder, []);
+        byPlaceholder.get(placeholder).push({ file: w.file, seq: w.seq, start: o.start, end: o.end });
+      });
+      if (!byPlaceholder.size) byPlaceholder.set(placeholderOf(r), []);
+      return [...byPlaceholder].map(([placeholder, places], k) => ({ placeholder, forms: k ? [] : r.forms, places }));
+    });
     const copy = await anonymizedCopy(buffer, replacements);
     // The copy is read and checked like any document before it is handed out.
     const read = await readFile(copy, '');
     const again = check(read.parts, state.vocabulary);
     const replacedKeys = new Set(ticked.flatMap((r) => r.forms.map(fold)));
-    // Left over: a ticked form anywhere, or anything in what the copy must have removed.
-    const left = again.entries.filter((e) => e.occurrences.some((o) =>
-      replacedKeys.has(fold(o.text)) || REMOVED.has(read.parts[o.part].where.part))).length;
+    // Left over: a ticked form anywhere, anything in what the copy must have removed,
+    // and a name or an initial standing next to a placeholder the copy wrote
+    // ("H. A.________", "A.________-Keller"): what was missed of a name just replaced.
+    const leftAt = new Set();
+    for (const e of again.entries) {
+      for (const o of e.occurrences) {
+        if (replacedKeys.has(fold(o.text)) || REMOVED.has(read.parts[o.part].where.part)) leftAt.add(o.part + ':' + o.start);
+      }
+    }
+    const written = [...new Set(replacements.map((r) => r.placeholder))].filter((p) => p !== BLANK);
+    if (written.length) {
+      const ph = '(?:' + written.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')';
+      const beside = new RegExp('(?<![\\p{L}\\p{N}_])\\p{Lu}\\.[ \\u00a0]?' + ph + '|' + ph + '[\\-\\u2011]\\p{Lu}|\\p{Lu}\\p{L}+[\\-\\u2011]' + ph, 'gu');
+      read.parts.forEach((p, i) => {
+        if (!VISIBLE.has(p.where.part)) return;
+        for (const m of p.text.matchAll(beside)) leftAt.add(i + ':' + m.index);
+      });
+    }
+    const left = leftAt.size;
     const name = ((state.file && state.file.name) || 'Entscheid.docx').replace(/\.docx$/i, '') + ' anonymisiert.docx';
     if (previousUrl) URL.revokeObjectURL(previousUrl);
     state.copy = { left, name };
@@ -253,6 +307,11 @@ function contextOf(o) {
 function describe(row) {
   if (row.kind === 'identifier') return t('lab_' + row.label);
   if (row.kind === 'number') return t('lab_number');
+  if (row.ambiguous) {
+    const list = row.candidates.map((key) => state.rows.find((r) => r.key === key))
+      .map((r) => (placeholderOf(r) === BLANK ? '' : placeholderOf(r)[0] + ' ') + r.text);
+    return t('lab_ambiguous', { list: list.join(', ') });
+  }
   return row.person ? t('lab_person') : t('lab_word');
 }
 
@@ -274,7 +333,7 @@ function renderRow(row) {
   name.type = 'button';
   name.setAttribute('aria-expanded', String(state.open === row.key));
   name.append(el('span', 'a-forms', row.text));
-  if (d.replace) name.append(el('span', 'a-becomes', d.placeholder));
+  if (d.replace) name.append(el('span', 'a-becomes', [...new Set(row.occurrences.map((o, i) => placeAt(row, i)))].join(' ')));
   name.addEventListener('click', () => { state.open = state.open === row.key ? null : row.key; render(); if (state.open) show(row, 0); });
 
   const count = el('span', 'a-count', t('a_times', { n: row.occurrences.length }));
@@ -290,10 +349,10 @@ function renderRow(row) {
   for (const value of options) {
     const opt = el('option', null, value === BLANK ? BLANK : value[0]);      // the letter; the row shows the whole placeholder
     opt.value = value;
-    opt.selected = value === d.placeholder;
+    opt.selected = value === placeAt(row, 0);
     chip.append(opt);
   }
-  chip.addEventListener('change', () => { d.placeholder = chip.value; d.replace = true; d.ok = false; state.copy = null; render(); });
+  chip.addEventListener('change', () => { d.placeholder = chip.value; d.each = null; d.replace = true; d.ok = false; state.copy = null; render(); });
   head.append(box, name, count);
   if (!row.removed) head.append(chip);
   li.append(head);
@@ -303,10 +362,8 @@ function renderRow(row) {
   for (const o of row.occurrences) kinds.set(o.kind, (kinds.get(o.kind) || 0) + 1);
   const where = [...kinds].map(([k, n]) => (k === 'body' && n === 1 ? placeName(row.occurrences[0]) : t('part_' + k) + (n > 1 ? ' ' + t('a_times', { n }) : '')));
   const line = el('div', 'a-line' + (state.open === row.key ? '' : ' a-short'));
-  line.append(el('p', null, describe(row) + '.'));
-  // Other spellings of a name; an identifier is one form, never split into words.
-  const variants = row.kind === 'word' ? row.forms.filter((f) => !row.text.split(' ').includes(f)) : row.forms.filter((f) => f !== row.text);
-  if (variants.length) line.append(el('p', null, t('a_variants', { list: variants.join(', ') })));
+  line.append(el('p', null, describe(row).replace(/[^.]$/, '$&.')));
+  if (row.variants.length) line.append(el('p', null, t('a_variants', { list: row.variants.join(', ') })));
   line.append(el('p', null, t('a_where', { list: where.join(', ') })));
   if (row.hidden) line.append(el('p', null, row.removed ? t('a_removed') : t('a_kept')));
   li.append(line);
@@ -320,7 +377,9 @@ function renderRow(row) {
       place.type = 'button';
       place.disabled = state.host !== 'word' || !o.visible;
       place.addEventListener('click', () => show(row, i));
-      item.append(place, contextOf(o));
+      item.append(place);
+      if (row.ambiguous && o.visible) item.append(' ', placeChip(row, i));
+      item.append(contextOf(o));
       list.append(item);
     });
     body.append(list);
@@ -346,6 +405,29 @@ function renderRow(row) {
     li.append(body);
   }
   return li;
+}
+
+const placesKey = (row) => row.occurrences.map((o) => o.part + ':' + o.start).join(' ');
+
+// The letter for one place of a name that fits several people.
+function placeChip(row, i) {
+  const d = state.decide.get(row.key);
+  const chip = el('select', 'a-chip a-chip-place');
+  chip.dataset.focus = 'place:' + row.key + ':' + i;
+  chip.setAttribute('aria-label', t('a_replace') + ': ' + row.occurrences[i].text + ', ' + placeName(row.occurrences[i]) + ', ' + t('a_by'));
+  for (const value of [...LETTERS.map(letter), BLANK]) {
+    const opt = el('option', null, value === BLANK ? BLANK : value[0]);
+    opt.value = value;
+    opt.selected = value === placeAt(row, i);
+    chip.append(opt);
+  }
+  chip.addEventListener('change', () => {
+    if (!d.each) d.each = new Map();
+    d.eachFor = placesKey(row);
+    d.each.set(i, chip.value);
+    d.replace = true; d.ok = false; state.copy = null; render();
+  });
+  return chip;
 }
 
 function renderGroup(container, title, rows) {

@@ -42,7 +42,9 @@ const LOOSE = [
   /(?<![A-Za-z0-9])[A-Z]{1,6}\.\d{4}\.\d{1,6}(?:-[A-Z0-9]+)?(?![A-Za-z0-9])/g,
   /(?<![A-Za-z0-9])[A-Z]{1,3}[ _.]?(?:\d{1,5}\/\d{4}|\d{4}\/\d{1,4})(?![0-9\/])/g,
   /(?<![A-Za-z0-9])[A-Z]{2}\d{6}(?:-[A-Z](?:_U\d+)?)?(?![A-Za-z0-9])/g,
-  /(?<![0-9.])\d{3} \d{2} \d{1,4}(?![0-9])/g,
+  // "123 45 67" is also how a phone number ends: not after another group of digits,
+  // "+41", "Tel." or "Postfach".
+  /(?<![0-9.])(?<!\d[ \u00a0])(?<!(?:\+\d{2}|[Tt]el\.?|[Tt]elefon|[Tt]éléphone|[Tt]elefono|[Ff]ax|[Nn]atel|[Mm]obile?|[Pp]ostfach|[Cc]ase postale|[Cc]asella postale):?[ \u00a0]?)\d{3} \d{2} \d{1,4}(?![0-9])/g,
   /(?<![A-Za-z0-9])[A-Za-zÀ-ÿ]{1,8}\/\d{1,6}\/\d{1,6}(?![0-9])/g,
   /(?<![A-Za-z])(?:ZR|Pra|GVP|BVR|RBOG|SJZ|AJP|JdT|SJ|RDAF)\s+\d{1,4}(?:\/\d{2,4})?(?:\s+(?:I{1,3}|IV)(?:\s+\d{1,5})?)?(?:\s*(?:Nr\.|n°|no\.|N)\s*\d{1,5})?(?![0-9])/g,
 ];

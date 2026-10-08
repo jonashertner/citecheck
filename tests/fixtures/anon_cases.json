@@ -276,5 +276,38 @@
     }
    }
   ]
+ },
+ {
+  "name": "People, not words: full names, initials, double names, ambiguous mentions",
+  "parts": [
+   {
+    "text": "Die Beschwerdeführerin Anna Müller und der Beschwerdeführer Hans Müller.",
+    "where": {
+     "part": "body",
+     "index": 0
+    }
+   },
+   {
+    "text": "Der Beschwerdeführer Müller bestritt dies; Müllers Konto ist im Dossier.",
+    "where": {
+     "part": "body",
+     "index": 1
+    }
+   },
+   {
+    "text": "HANS MÜLLER und H. Müller; Hans bestritt dies.",
+    "where": {
+     "part": "body",
+     "index": 2
+    }
+   },
+   {
+    "text": "Rechtsanwalt Peter Meier für Müller-Meier; Anna Müller-Keller bestritt dies. RA Kunz bestritt dies.",
+    "where": {
+     "part": "body",
+     "index": 3
+    }
+   }
+  ]
  }
 ]

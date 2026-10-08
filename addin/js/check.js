@@ -117,11 +117,14 @@ function checkPinpoint(pinpoint, rows) {
   const parent = pinpointParent(pinpoint);
   if (parent && withNumbers.some((r) => r.enums.includes(parent))) return { state: 'parent_only', parent };
   // What the decision does have at that place: the siblings, or the top level.
+  // A number known only through its sub-numbers (4 through 4.1 and 4.2) is there too.
   const stem = pinpoint.includes('.') ? pinpoint.slice(0, pinpoint.lastIndexOf('.') + 1) : '';
   const depth = pinpoint.split('.').length;
   const enums = withNumbers[0].enums;
-  let nearby = enums.filter((e) => e.startsWith(stem) && e.split('.').length === depth);
-  if (!nearby.length) nearby = enums.filter((e) => !e.includes('.'));
+  const level = (prefix, n) => [...new Set(enums.filter((e) => e.startsWith(prefix) && e.split('.').length >= n)
+    .map((e) => e.split('.').slice(0, n).join('.').replace(/\/.*$/, '')))];
+  let nearby = stem ? level(stem, depth) : [];
+  if (!nearby.length) nearby = level('', 1);
   return { state: 'absent', nearby: nearby.slice(0, 14), more: nearby.length > 14 };
 }
 
@@ -167,6 +170,8 @@ function checkOne(index, parsed) {
     if (outside.length) {
       result.status = 'differs';
       result.issues.push({ kind: 'page', written: outside, range });
+    } else if (range.last !== null) {
+      result.notes.push({ kind: 'page_inside', written: parsed.pages, range });
     }
   }
   if (rows.length > 1 && new Set(rows.map((r) => r.court + r.date)).size > 1) result.notes.push({ kind: 'several', rows });
@@ -190,9 +195,18 @@ export function checkDocument(paragraphs, index) {
   lengths.reduce((sum, n, i) => { offsets[i] = sum; return sum + n; }, 0);
 
   const found = findCitations(texts);
+  // "BGE 129 III 320, 324": the page after a comma is the pinpoint page. Read here, not
+  // in the finder, which stays the research client's; a number that cannot be a page
+  // of the decision (a year, another volume) is left alone.
+  for (const f of found) {
+    if (!f.parsed.bge || f.parsed.pages.length || f.parsed.dockets.length) continue;
+    const m = /^,[ \u00a0]?(\d{1,4})(?![\d\/]|\.\d|[ \u00a0]*(?:Ia|Ib|III|II|IV|I|V)\b)/.exec(texts[f.paragraph].slice(f.end));
+    const page = m && Number(m[1]);
+    if (page && page > f.parsed.bge.page && page - f.parsed.bge.page <= 200) f.parsed = { ...f.parsed, pages: [page] };
+  }
   const memo = new Map();
   const findings = found.map((f) => {
-    const memoKey = f.text;
+    const memoKey = f.text + '|' + f.parsed.pages.join(',');
     if (!memo.has(memoKey)) memo.set(memoKey, checkOne(index, f.parsed));
     return { ...f, ...memo.get(memoKey) };
   });

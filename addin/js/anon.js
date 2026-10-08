@@ -371,12 +371,12 @@ export function check(parts, vocabulary) {
     shown.push({ kind: 'number', label: null, start: a, end: b, text: value });
   }
 
-  return assemble(t, shown, placeholders, initials, counts, named, pub, anonymizedRoles);
+  return assemble(t, shown, placeholders, initials, counts, named, pub, anonymizedRoles, has);
 }
 
 const byCodePoint = (x, y) => (x < y ? -1 : x > y ? 1 : 0);
 
-function assemble(t, shown, placeholders, initials, counts, named, pub, anonymizedRoles) {
+function assemble(t, shown, placeholders, initials, counts, named, pub, anonymizedRoles, has) {
   shown.sort((x, y) => x.start - y.start);
   const words = new Set(shown.filter((s) => s.kind === 'word').map((s) => fold(s.text)));
 
@@ -416,13 +416,15 @@ function assemble(t, shown, placeholders, initials, counts, named, pub, anonymiz
   out.sort((x, y) => RANK[x.kind] - RANK[y.kind] || x.occurrences[0].part - y.occurrences[0].part || x.occurrences[0].start - y.occurrences[0].start);
   out.forEach((e, i) => { e.id = i; });
 
+  const found = people(t, shown.filter((s) => s.kind === 'word'), has);
   const anonymized = Object.values(placeholders).reduce((s, n) => s + n, 0) >= 3 || initials >= 5;
   const sortedNames = (set) => [...set].sort(byCodePoint);
   return {
     anonymized,
     placeholders: Object.fromEntries(Object.entries(placeholders).sort((x, y) => y[1] - x[1] || byCodePoint(x[0], y[0]))),
     entries: out,
-    persons: persons(t, out),
+    people: found[0],
+    ambiguous: found[1],
     explained: {
       common: counts.common, numbers: counts.numbers,
       court: sortedNames(named.court), counsel: sortedNames(named.counsel), official: sortedNames(named.official),
@@ -433,33 +435,138 @@ function assemble(t, shown, placeholders, initials, counts, named, pub, anonymiz
   };
 }
 
-// Shown words written next to each other ("Hans Müller") are one person.
-function persons(t, entries) {
-  const parent = entries.map((_, i) => i);
-  const root = (i) => {
-    while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; }
-    return i;
-  };
-  const occ = [];
-  for (const e of entries) {
-    if (e.kind !== 'word') continue;
-    for (const o of e.occurrences) occ.push([t.starts[o.part] + o.start, t.starts[o.part] + o.end, e.id]);
+// People, not words. A mention is a name as written: shown words next to each
+// other ("Hans Müller"), with the other half of a double name where that half is
+// a name made public elsewhere ("Müller-Meier"), and a capital initial before it
+// ("H. Müller"). A person is a full name, in any order and case ("MÜLLER Hans");
+// a longer name holding exactly one person's name is that person ("Anna
+// Müller-Keller" is Anna Müller). A single word ("Müller", "Hans", "Müllers")
+// belongs to the one person it fits; where it fits several it is ambiguous and
+// the clerk decides; where it fits none it is a person of its own.
+const LINK = /^[ \-‑]$/u;
+const HALF_AFTER = /^[\-‑]([\p{L}\p{Nl}\p{No}]{2,})/u;
+const HALF_BEFORE = /(?<![\p{L}\p{N}_])([\p{L}\p{Nl}\p{No}]{2,})[\-‑]$/u;
+const INITIAL_BEFORE = /(?<![\p{L}\p{N}_.])([A-Z])\.[  ]?$/u;
+
+function people(t, words, has) {
+  const text = t.text;
+  const stems = new Set(words.map((w) => fold(w.text)));
+
+  const runs = [];
+  for (const w of [...words].sort((x, y) => x.start - y.start)) {
+    const last = runs[runs.length - 1];
+    if (last && t.index(last.end) === t.index(w.start) && LINK.test(text.slice(last.end, w.start) || 'x')) {
+      last.end = w.end;
+      last.names.push(w.text);
+    } else {
+      runs.push({ start: w.start, end: w.end, names: [w.text] });
+    }
   }
-  occ.sort((x, y) => x[0] - y[0] || x[1] - y[1] || x[2] - y[2]);
-  for (let k = 0; k + 1 < occ.length; k++) {
-    const [, b1, i] = occ[k];
-    const [a2, , j] = occ[k + 1];
-    if (i !== j && /^[ -]$/.test(t.text.slice(b1, a2))) parent[root(j)] = root(i);
+
+  const half = (name) => isUpper(name[0]) && !has(name.toLowerCase());
+
+  const mentions = [];
+  for (const r of runs) {
+    const i = t.index(r.start);
+    const lo = t.starts[i];
+    const hi = t.starts[i] + t.parts[i].text.length;
+    let { start, end } = r;
+    const names = [...r.names];
+    let m = HALF_AFTER.exec(text.slice(end, Math.min(hi, end + 40)));
+    if (m && half(m[1])) {
+      end += m[0].length;
+      names.push(m[1]);
+    }
+    m = HALF_BEFORE.exec(text.slice(Math.max(lo, start - 40), start));
+    if (m && half(m[1])) {
+      start -= m[0].length;
+      names.unshift(m[1]);
+    }
+    m = INITIAL_BEFORE.exec(text.slice(Math.max(lo, start - 4), start));
+    const initial = m ? m[1].toLowerCase() : null;
+    if (m) start -= m[0].length;
+    const tokens = [];
+    names.forEach((name, k) => {
+      let f = fold(name);
+      if (f.endsWith('s') && stems.has(f.slice(0, -1))) {
+        f = f.slice(0, -1);
+        if (k === names.length - 1 && end === r.end) end -= 1;   // the genitive s stays: "A.________s Anwalt"
+      }
+      tokens.push(f);
+    });
+    mentions.push({ start, end, tokens: [...new Set(tokens)].sort(byCodePoint), initial });
   }
-  const groups = new Map();
-  for (const e of entries) {
-    if (e.kind !== 'word') continue;
-    const r = root(e.id);
-    if (!groups.has(r)) groups.set(r, []);
-    groups.get(r).push(e.id);
+
+  const same = (x, y) => x.size === y.size && [...x].every((v) => y.has(v));
+  const within = (x, y) => [...x].every((v) => y.has(v));
+  const persons = [];
+  const full = mentions.map((m, i) => i).filter((i) => mentions[i].tokens.length >= 2)
+    .sort((x, y) => mentions[x].tokens.length - mentions[y].tokens.length || mentions[x].start - mentions[y].start);
+  for (const i of full) {
+    const toks = new Set(mentions[i].tokens);
+    let fits = persons.map((q, k) => k).filter((k) => same(persons[k].tokens, toks));
+    if (!fits.length) fits = persons.map((q, k) => k).filter((k) => within(persons[k].tokens, toks));
+    if (fits.length === 1) persons[fits[0]].mentions.push(i);
+    else persons.push({ tokens: toks, mentions: [i] });
   }
-  return [...groups.values()].sort((x, y) => {
-    for (let i = 0; i < Math.min(x.length, y.length); i++) if (x[i] !== y[i]) return x[i] - y[i];
-    return x.length - y.length;
+  const named = persons.length;
+  const ambiguous = new Map();
+  const alone = new Map();
+  mentions.forEach((m, i) => {
+    if (m.tokens.length >= 2) return;
+    const tok = m.tokens[0];
+    const fits = [];
+    for (let k = 0; k < named; k++) {
+      if (persons[k].tokens.has(tok)
+          && (m.initial === null || [...persons[k].tokens].some((x) => x !== tok && x.startsWith(m.initial)))) fits.push(k);
+    }
+    if (fits.length === 1) {
+      persons[fits[0]].mentions.push(i);
+    } else if (fits.length) {
+      if (!ambiguous.has(tok)) ambiguous.set(tok, { mentions: [], candidates: new Set() });
+      ambiguous.get(tok).mentions.push(i);
+      for (const k of fits) ambiguous.get(tok).candidates.add(k);
+    } else if (alone.has(tok)) {
+      persons[alone.get(tok)].mentions.push(i);
+    } else {
+      alone.set(tok, persons.length);
+      persons.push({ tokens: new Set([tok]), mentions: [i] });
+    }
   });
+
+  const group = (ms) => {
+    ms = [...ms].sort((x, y) => mentions[x].start - mentions[y].start);
+    const places = [];
+    const texts = [];
+    for (const i of ms) {
+      const m = mentions[i];
+      const where = t.locate(m.start, m.end);
+      where.text = text.slice(m.start, m.end);
+      where.visible = VISIBLE.has(t.kind(m.start));
+      places.push(where);
+      texts.push(where.text);
+    }
+    // the fullest form, the most frequent among those, the first among those
+    const score = (x) => [x.split(/\s+/).filter(Boolean).length, texts.filter((y) => y === x).length, -texts.indexOf(x)];
+    let name = texts[0];
+    for (const x of texts) {
+      const a = score(x);
+      const b = score(name);
+      if (a[0] > b[0] || (a[0] === b[0] && (a[1] > b[1] || (a[1] === b[1] && a[2] > b[2])))) name = x;
+    }
+    return { name, mentions: places };
+  };
+
+  const firstOf = (k) => Math.min(...persons[k].mentions.map((i) => mentions[i].start));
+  const order = persons.map((q, k) => k).sort((x, y) => firstOf(x) - firstOf(y));
+  const rank = new Map(order.map((k, n) => [k, n]));
+  const outPeople = order.map((k) => group(persons[k].mentions));
+  const outAmbiguous = [];
+  for (const a of ambiguous.values()) {
+    const g = group(a.mentions);
+    g.candidates = [...a.candidates].map((k) => rank.get(k)).sort((x, y) => x - y);
+    outAmbiguous.push(g);
+  }
+  outAmbiguous.sort((x, y) => x.mentions[0].part - y.mentions[0].part || x.mentions[0].start - y.mentions[0].start);
+  return [outPeople, outAmbiguous];
 }

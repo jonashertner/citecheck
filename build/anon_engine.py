@@ -138,8 +138,11 @@ class _Text:
             pos += len(p["text"]) + 2
         self.text = "\n\n".join(p["text"] for p in parts)
 
+    def index(self, start: int) -> int:
+        return bisect.bisect_right(self.starts, start) - 1
+
     def locate(self, start: int, end: int) -> dict:
-        i = bisect.bisect_right(self.starts, start) - 1
+        i = self.index(start)
         return {"part": i, "start": start - self.starts[i], "end": end - self.starts[i]}
 
     def end_of_kind(self, start: int) -> int:
@@ -456,10 +459,10 @@ def check(parts: list[dict], vocabulary) -> dict:
             continue
         shown.append({"kind": "number", "label": None, "start": a, "end": b, "text": value})
 
-    return _assemble(t, shown, placeholders, initials, counts, named, public, anonymized_roles)
+    return _assemble(t, shown, placeholders, initials, counts, named, public, anonymized_roles, vocabulary)
 
 
-def _assemble(t, shown, placeholders, initials, counts, named, public, anonymized_roles) -> dict:
+def _assemble(t, shown, placeholders, initials, counts, named, public, anonymized_roles, vocabulary) -> dict:
     shown.sort(key=lambda s: s["start"])
     words = {fold(s["text"]) for s in shown if s["kind"] == "word"}
 
@@ -496,13 +499,14 @@ def _assemble(t, shown, placeholders, initials, counts, named, public, anonymize
     for i, e in enumerate(out):
         e["id"] = i
 
-    persons = _persons(t, out)
+    people, ambiguous = _people(t, [x for x in shown if x["kind"] == "word"], vocabulary)
     anonymized = sum(placeholders.values()) >= 3 or initials >= 5
     return {
         "anonymized": anonymized,
         "placeholders": dict(sorted(placeholders.items(), key=lambda kv: (-kv[1], kv[0]))),
         "entries": out,
-        "persons": persons,
+        "people": people,
+        "ambiguous": ambiguous,
         "explained": {
             "common": counts["common"], "numbers": counts["numbers"],
             **{k: sorted(v) for k, v in named.items()},
@@ -512,26 +516,122 @@ def _assemble(t, shown, placeholders, initials, counts, named, public, anonymize
     }
 
 
-def _persons(t: _Text, entries: list[dict]) -> list[list[int]]:
-    """Shown words written next to each other ("Hans Müller") are one person."""
-    parent = list(range(len(entries)))
+_LINK = re.compile(r"[ \-‑]")
+_HALF_AFTER = re.compile(r"[\-‑]([^\W\d_]{2,})")
+_HALF_BEFORE = re.compile(r"(?<!\w)([^\W\d_]{2,})[\-‑]\Z")
+_INITIAL_BEFORE = re.compile(r"(?<![\w.])([A-Z])\.[  ]?\Z")
 
-    def root(i):
-        while parent[i] != i:
-            parent[i] = parent[parent[i]]
-            i = parent[i]
-        return i
 
-    occ = sorted((t.starts[o["part"]] + o["start"], t.starts[o["part"]] + o["end"], e["id"])
-                 for e in entries if e["kind"] == "word" for o in e["occurrences"])
-    for (a1, b1, i), (a2, b2, j) in zip(occ, occ[1:]):
-        if i != j and re.fullmatch(r"[ \-]", t.text[b1:a2] or "x"):
-            parent[root(j)] = root(i)
-    groups: dict[int, list[int]] = {}
-    for e in entries:
-        if e["kind"] == "word":
-            groups.setdefault(root(e["id"]), []).append(e["id"])
-    return sorted(groups.values())
+def _people(t: _Text, words: list[dict], has) -> tuple[list[dict], list[dict]]:
+    """People, not words. A mention is a name as written: shown words next to each
+    other ("Hans Müller"), with the other half of a double name where that half is
+    a name made public elsewhere ("Müller-Meier"), and a capital initial before it
+    ("H. Müller"). A person is a full name, in any order and case ("MÜLLER Hans");
+    a longer name holding exactly one person's name is that person ("Anna
+    Müller-Keller" is Anna Müller). A single word ("Müller", "Hans", "Müllers")
+    belongs to the one person it fits; where it fits several it is ambiguous and
+    the clerk decides; where it fits none it is a person of its own.
+    Returns (people, ambiguous), each mention a place in the parts."""
+    text = t.text
+    stems = {fold(w["text"]) for w in words}
+
+    runs = []
+    for w in sorted(words, key=lambda w: w["start"]):
+        last = runs[-1] if runs else None
+        if (last and t.index(last["end"]) == t.index(w["start"])
+                and _LINK.fullmatch(text[last["end"]:w["start"]] or "x")):
+            last["end"] = w["end"]
+            last["names"].append(w["text"])
+        else:
+            runs.append({"start": w["start"], "end": w["end"], "names": [w["text"]]})
+
+    def half(name):
+        return is_upper(name[0]) and name.lower() not in has
+
+    mentions = []
+    for r in runs:
+        i = t.index(r["start"])
+        lo, hi = t.starts[i], t.starts[i] + len(t.parts[i]["text"])
+        start, end, names = r["start"], r["end"], list(r["names"])
+        m = _HALF_AFTER.match(text[end:min(hi, end + 40)])
+        if m and half(m.group(1)):
+            end += m.end()
+            names.append(m.group(1))
+        m = _HALF_BEFORE.search(text[max(lo, start - 40):start])
+        if m and half(m.group(1)):
+            start -= len(m.group(0))
+            names.insert(0, m.group(1))
+        m = _INITIAL_BEFORE.search(text[max(lo, start - 4):start])
+        initial = m.group(1).lower() if m else None
+        if m:
+            start -= len(m.group(0))
+        tokens = []
+        for k, name in enumerate(names):
+            f = fold(name)
+            if f.endswith("s") and f[:-1] in stems:
+                f = f[:-1]
+                if k == len(names) - 1 and end == r["end"]:
+                    end -= 1                     # the genitive s stays: "A.________s Anwalt"
+            tokens.append(f)
+        mentions.append({"start": start, "end": end, "tokens": sorted(set(tokens)), "initial": initial})
+
+    people: list[dict] = []
+    full = sorted((i for i, m in enumerate(mentions) if len(m["tokens"]) >= 2),
+                  key=lambda i: (len(mentions[i]["tokens"]), mentions[i]["start"]))
+    for i in full:
+        toks = set(mentions[i]["tokens"])
+        fits = [k for k, q in enumerate(people) if q["tokens"] == toks] or \
+               [k for k, q in enumerate(people) if q["tokens"] <= toks]
+        if len(fits) == 1:
+            people[fits[0]]["mentions"].append(i)
+        else:
+            people.append({"tokens": toks, "mentions": [i]})
+    named = len(people)
+    ambiguous: dict[str, dict] = {}
+    alone: dict[str, int] = {}
+    for i, m in enumerate(mentions):
+        if len(m["tokens"]) >= 2:
+            continue
+        tok = m["tokens"][0]
+        fits = [k for k in range(named) if tok in people[k]["tokens"]
+                and (m["initial"] is None or any(x != tok and x.startswith(m["initial"]) for x in people[k]["tokens"]))]
+        if len(fits) == 1:
+            people[fits[0]]["mentions"].append(i)
+        elif fits:
+            if tok not in ambiguous:
+                ambiguous[tok] = {"mentions": [], "candidates": set()}
+            ambiguous[tok]["mentions"].append(i)
+            ambiguous[tok]["candidates"].update(fits)
+        elif tok in alone:
+            people[alone[tok]]["mentions"].append(i)
+        else:
+            alone[tok] = len(people)
+            people.append({"tokens": {tok}, "mentions": [i]})
+
+    def group(ms):
+        ms = sorted(ms, key=lambda i: mentions[i]["start"])
+        places, texts = [], []
+        for i in ms:
+            m = mentions[i]
+            where = t.locate(m["start"], m["end"])
+            where["text"] = text[m["start"]:m["end"]]
+            where["visible"] = t.kind(m["start"]) in VISIBLE
+            places.append(where)
+            texts.append(where["text"])
+        # the fullest form, the most frequent among those, the first among those
+        name = max(texts, key=lambda x: (len(x.split()), texts.count(x), -texts.index(x)))
+        return {"name": name, "mentions": places}
+
+    order = sorted(range(len(people)), key=lambda k: min(mentions[i]["start"] for i in people[k]["mentions"]))
+    rank = {k: n for n, k in enumerate(order)}
+    out_people = [group(people[k]["mentions"]) for k in order]
+    out_ambiguous = []
+    for a in ambiguous.values():
+        g = group(a["mentions"])
+        g["candidates"] = sorted(rank[k] for k in a["candidates"])
+        out_ambiguous.append(g)
+    out_ambiguous.sort(key=lambda g: (g["mentions"][0]["part"], g["mentions"][0]["start"]))
+    return out_people, out_ambiguous
 
 
 def main(argv: list[str] | None = None) -> int:
