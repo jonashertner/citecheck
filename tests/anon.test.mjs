@@ -130,3 +130,14 @@ test('people, not words: one row per person, the full name as written, ambiguous
     [['Müller', [0, 1, 2], ['Müller', 'Müller']]]);
   assert.ok(r.explained.counsel.includes('Kunz'), 'RA is counsel');
 });
+
+test('Word test 2026-10-08: combining umlaut, date forms, one-letter e-mail, a party with the judge\'s name, non-breaking spaces', () => {
+  const r = run(9);
+  const hans = r.people.find((p) => p.mentions[0].part === 0);
+  assert.deepEqual([hans.mentions[0].text, hans.mentions[0].start, hans.mentions[0].end], ['Hans Müller', 0, 12]);   // as written in the file
+  assert.deepEqual(r.entries.filter((e) => e.label === 'birthdate').map((e) => e.text), ['1980-03-12', '12/03/1980', '3. März 1971']);
+  assert.deepEqual(r.entries.filter((e) => e.label === 'email').map((e) => e.text), ['a@example.invalid']);   // x@ is a mask
+  assert.deepEqual(r.explained.court, ['Seiler']);
+  assert.ok(r.people.some((p) => p.name === 'Seiler' && p.mentions[0].part === 3), 'the party Seiler is shown');
+  assert.deepEqual(r.people.filter((p) => p.mentions[0].part === 4).map((p) => p.name), ['Anna Keller', 'Peter Brunner']);
+});

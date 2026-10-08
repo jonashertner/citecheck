@@ -76,7 +76,7 @@ test('the anonymized copy: names replaced, hidden content gone, the rest untouch
   // Only the places the check showed are replaced: the clerk of the court, also a Hans, keeps his name.
   assert.ok(where(parts, 'body').includes('Gerichtsschreiber Hans Wiprächtiger.'));
   assert.deepEqual(where(parts, 'link'), ['mailto:A.________']);
-  assert.match(where(parts, 'field')[0], /Partei_Mueller/);       // inside a field name, not a word of its own: shown by the check below
+  assert.match(where(parts, 'field')[0], /Partei_A\.________/);  // an underscore parts words, in the check and in the copy alike
   assert.equal(notes.thumbnail, false);
 
   const zip = entries(copy);
@@ -92,13 +92,50 @@ test('the anonymized copy: names replaced, hidden content gone, the rest untouch
   assert.doesNotMatch(text('word/settings.xml'), /docVar|trackRevisions|attachedTemplate/);
   assert.doesNotMatch(text('word/document.xml'), /commentReference|w:del |vanish\/>|Müller/);
 
-  // The re-check of the copy: no form of the name is left; the field name "Partei_Mueller"
-  // was not a word of its own, so it was not replaced, and the check shows it.
+  // The re-check of the copy: no form of the name is left, not even inside the field name.
   const recheck = check(parts, vocabulary);
   const left = recheck.entries.filter((e) => /m(ü|ue)ller|hans/i.test(e.text));
-  assert.deepEqual(left.map((e) => [e.text, e.occurrences.map((o) => parts[o.part].where.part)]), [['Mueller', ['field']]]);
+  assert.deepEqual(left.map((e) => e.text), []);
 });
 
 test('crc32 matches the zip standard', () => {
   assert.equal(crc32(new TextEncoder().encode('The quick brown fox jumps over the lazy dog')), 0x414fa339);
+});
+
+test('Word test 2026-10-08: style-hidden text, content controls, https targets, non-breaking hyphens, combining umlauts', async () => {
+  const p = join(dir, 'surfaces.docx');
+  execFileSync(python, [new URL('./make_fixture_surfaces_docx.py', import.meta.url).pathname, p]);
+  const raw = readFileSync(p);
+  const buf = raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength);
+  const read = await readFile(buf, '');
+  // read: hidden by a style (through basedOn), the control's name and tag, the decoded link target
+  assert.deepEqual(where(read.parts, 'hidden'), ['Benno Unsichtbar benno@example.org']);
+  assert.equal(where(read.parts, 'body')[0], 'Sichtbar. ');
+  const props = read.parts.filter((x) => x.where.name === 'content control').map((x) => x.text);
+  assert.deepEqual(props, ['Partei Emma Musterperson', 'lukas.sdt@example.org']);
+  assert.deepEqual(where(read.parts, 'link'), ['https://example.org/qa/Emma Musterperson?email=emma.link@example.org']);
+  const r = check(read.parts, vocabulary);
+  assert.ok(r.entries.some((e) => e.label === 'email' && e.text === 'emma.link@example.org'), 'the e-mail inside the link target');
+  // a double name joined by a non-breaking hyphen is one mention; a combining umlaut is one person
+  const lea = r.people.find((x) => /Lea/.test(x.name));
+  assert.equal(lea.mentions[0].text, 'Lea Brunner‑Keller');
+  const hans = r.people.find((x) => /Hans/.test(x.name));
+  assert.equal(hans.mentions[0].text, 'Hans Müller');
+
+  // the copy: everything ticked, as the pane would
+  const body = (o) => read.parts[o.part].where;
+  const replacements = [
+    { placeholder: 'A.________', forms: ['Lea', 'Brunner', 'Keller'], places: lea.mentions.map((o) => ({ file: body(o).file, seq: body(o).seq, start: o.start, end: o.end })) },
+    { placeholder: 'B.________', forms: ['Hans', 'Müller'], places: hans.mentions.map((o) => ({ file: body(o).file, seq: body(o).seq, start: o.start, end: o.end })) },
+    { placeholder: '[…]', forms: ['emma.link@example.org', 'Emma', 'Musterperson'], places: [] },
+  ];
+  const copy = await anonymizedCopy(buf, replacements);
+  const again = await readFile(copy, '');
+  assert.deepEqual(where(again.parts, 'body'), ['Sichtbar. ', 'Inhalt des Steuerelements.', 'Weiterer Link', 'Der Sohn A.________ bestritt dies.', 'B.________ sagt aus.']);
+  assert.deepEqual(where(again.parts, 'hidden'), []);
+  assert.deepEqual(again.parts.filter((x) => x.where.name === 'content control'), []);
+  const xml = (name) => new TextDecoder().decode(execFileSync(python, ['-c', 'import sys,zipfile; sys.stdout.write(zipfile.ZipFile(sys.argv[1]).read(sys.argv[2]).decode())', join(dir, 'surfaces-copy.docx'), name]));
+  writeFileSync(join(dir, 'surfaces-copy.docx'), new Uint8Array(copy));
+  assert.doesNotMatch(xml('word/document.xml'), /Benno|Musterperson|lukas|noBreakHyphen|w:alias|w:tag/);
+  assert.doesNotMatch(xml('word/_rels/document.xml.rels'), /Emma|emma\.link/);
 });

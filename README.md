@@ -75,9 +75,12 @@ ZEMIS number, ID document number, account number. The same details of an
 office, an insurer, a company or counsel are explained.
 
 "Everything the file carries" includes what a reader does not see: comments
-(and their authors), text deleted with tracked changes, hidden text, field
-codes, image descriptions, document properties and variables, data a
-case-management system left in `customXml/`, link targets, the file name.
+(and their authors), text deleted with tracked changes, hidden text (also
+hidden by a style), field codes, image descriptions, document properties and
+variables, names and tags of content controls, data a case-management system
+left in `customXml/`, where links lead (`https://`, `mailto:`), the file name.
+Text is compared in composed form, so a name typed with a combining umlaut
+(`u` + U+0308) is the same name.
 
 The clerk ticks what to replace; a person gets one letter wherever and however
 the name is written (letters already used by the document are skipped).
@@ -86,12 +89,17 @@ the name is written (letters already used by the document are skipped).
 - every ticked place replaced as the name is written, with its initial and both
   halves of a double name ("H. Müller", "Müller-Meier"), also where Word split it
   across formatting runs; a genitive keeps its s ("A.________s Anwalt");
-- tracked changes accepted, deletions gone; comments, hidden text, document
-  properties, the page thumbnail, custom XML, document variables and the
-  template path removed;
+- tracked changes accepted, deletions gone; comments, hidden text (also when a
+  style hides it), document properties, content-control names and tags, the
+  page thumbnail, custom XML, document variables and the template path
+  removed; ticked names and identifiers replaced in link targets too;
 - the copy is read back and checked like any document, including for an initial
   or a name left next to a placeholder ("H. A.________"); only then is it opened
-  as a new Word document (or offered as a download), with the result stated.
+  as a new Word document (or offered as a download). The result says what was
+  done and what the clerk left (shown, neither ticked nor confirmed), never more.
+
+Word writes the editor's name into the properties of a file it saves: the saved
+copy is worth one more check before it is published.
 
 The open document is never changed.
 

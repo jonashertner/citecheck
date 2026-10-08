@@ -24,9 +24,9 @@ const VISIBLE = new Set(['body', 'footnote', 'endnote', 'header', 'footer']);
 const PARTICLES = new Set(['von', 'van', 'de', 'da', 'di', 'del', 'della', 'du', 'des', 'der', 'le', 'la', 'zur', 'zum']);
 const TITLES = new Set(['dr', 'prof', 'pd', 'lic', 'iur', 'med', 'phil', 'rer', 'pol', 'oec', 'mlaw', 'll']);
 const IDENTIFIERS = ['ahv', 'ahv_old', 'iban', 'insured', 'zemis', 'document_no', 'account',
-  'parcel', 'birthdate', 'email', 'url', 'phone', 'plate', 'address'];
-const LABEL = { ahv_old: 'ahv', document_no: 'document', url: 'profile' };
-const VALUE_GROUP = new Set(['ahv_old', 'insured', 'zemis', 'document_no', 'account', 'parcel', 'birthdate']);
+  'parcel', 'birthdate', 'birthdate_after', 'email', 'url', 'phone', 'plate', 'address'];
+const LABEL = { ahv_old: 'ahv', document_no: 'document', url: 'profile', birthdate_after: 'birthdate' };
+const VALUE_GROUP = new Set(['ahv_old', 'insured', 'zemis', 'document_no', 'account', 'parcel', 'birthdate', 'birthdate_after']);
 const RANK = { identifier: 0, word: 1, number: 1 };
 const LINKS = ['', 's', 'es', 'n', 'en', 'er', 'e'];
 
@@ -116,8 +116,34 @@ export function compoundSplit(word, has, depth = 0) {
 }
 
 // ── the check ─────────────────────────────────────────────────────────────
+// The text in composed form and, per character of it, where it starts in `s`;
+// [s, null] when it is composed already.
+function compose(s) {
+  if (s.normalize('NFC') === s) return [s, null];
+  let out = '';
+  const where = [];
+  for (let i = 0; i < s.length;) {
+    let j = i + 1;
+    while (j < s.length && /\p{M}/u.test(s[j])) j++;
+    const piece = s.slice(i, j).normalize('NFC');
+    out += piece;
+    for (let k = 0; k < piece.length; k++) where.push(i);
+    i = j;
+  }
+  where.push(s.length);
+  return [out, where];
+}
+
 class Joined {
   constructor(parts) {
+    // Checked in composed form ("u" + U+0308 is "ü"); places are given in the part as written.
+    this.written = parts.map((p) => p.text);
+    this.maps = [];
+    parts = parts.map((p) => {
+      const [composed, where] = compose(p.text);
+      this.maps.push(where);
+      return where === null ? p : { ...p, text: composed };
+    });
     this.parts = parts;
     this.starts = [];
     let pos = 0;
@@ -140,7 +166,10 @@ class Joined {
 
   locate(start, end) {
     const i = this.index(start);
-    return { part: i, start: start - this.starts[i], end: end - this.starts[i] };
+    let a = start - this.starts[i];
+    let b = end - this.starts[i];
+    if (this.maps[i] !== null) { a = this.maps[i][a]; b = this.maps[i][b]; }
+    return { part: i, start: a, end: b, text: this.written[i].slice(a, b) };
   }
 
   // Where the run of parts of the same kind as the one at `start` ends.
@@ -338,7 +367,9 @@ export function check(parts, vocabulary) {
       counts.common++;                                 // "^streit": "der Streit" is the noun, "Streit" alone the name
       continue;
     }
-    if (officeWords.has(low)) { named[officeWords.get(low)].add(token); continue; }
+    // The bench's or counsel's surname elsewhere is theirs, unless a party word stands
+    // before it: "Bundesrichter Hans Müller ... Der Kläger Müller".
+    if (officeWords.has(low) && !test('party_before', text.slice(Math.max(0, a - 40), a))) { named[officeWords.get(low)].add(token); continue; }
     const after = text.slice(b, b + 90);
     if (matchStart('author_after', after) || cited(text, a, b)) { named.author.add(token); continue; }
     if (matchStart('case_after', after)) { named.case.add(token); continue; }
@@ -397,7 +428,6 @@ function assemble(t, shown, placeholders, initials, counts, named, pub, anonymiz
     const k = keyOf(s);
     if (!entries.has(k)) entries.set(k, { key: k, kind: s.kind, label: s.label, occurrences: [] });
     const where = t.locate(s.start, s.end);
-    where.text = s.text;
     where.visible = VISIBLE.has(t.kind(s.start));
     entries.get(k).occurrences.push(where);
   }
@@ -443,10 +473,10 @@ function assemble(t, shown, placeholders, initials, counts, named, pub, anonymiz
 // Müller-Keller" is Anna Müller). A single word ("Müller", "Hans", "Müllers")
 // belongs to the one person it fits; where it fits several it is ambiguous and
 // the clerk decides; where it fits none it is a person of its own.
-const LINK = /^[ \-‑]$/u;
-const HALF_AFTER = /^[\-‑]([\p{L}\p{Nl}\p{No}]{2,})/u;
-const HALF_BEFORE = /(?<![\p{L}\p{N}_])([\p{L}\p{Nl}\p{No}]{2,})[\-‑]$/u;
-const INITIAL_BEFORE = /(?<![\p{L}\p{N}_.])([A-Z])\.[  ]?$/u;
+const LINK = /^[ \u00a0\u202f\-\u2011]$/u;
+const HALF_AFTER = /^[\-\u2011]([\p{L}\p{Nl}\p{No}]{2,})/u;
+const HALF_BEFORE = /(?<![\p{L}\p{N}_])([\p{L}\p{Nl}\p{No}]{2,})[\-\u2011]$/u;
+const INITIAL_BEFORE = /(?<![\p{L}\p{N}_.])([A-Z])\.[ \u00a0\u202f]?$/u;
 
 function people(t, words, has) {
   const text = t.text;
@@ -541,7 +571,6 @@ function people(t, words, has) {
     for (const i of ms) {
       const m = mentions[i];
       const where = t.locate(m.start, m.end);
-      where.text = text.slice(m.start, m.end);
       where.visible = VISIBLE.has(t.kind(m.start));
       places.push(where);
       texts.push(where.text);

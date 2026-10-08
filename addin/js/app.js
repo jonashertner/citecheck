@@ -137,7 +137,8 @@ function suggestionText(f, s) {
   return t('s_' + s.reason);
 }
 
-const placeText = (f) => (f.where && f.where.part === 'footnote' ? t('footnote', { n: f.where.note + 1 }) : t('paragraph', { n: f.paragraph + 1 }));
+const placeText = (f) => (f.where && f.where.part === 'footnote' ? t('footnote', { n: f.where.note + 1 })
+  : f.where && f.where.part === 'endnote' ? t('endnote_n', { n: f.where.note + 1 }) : t('paragraph', { n: f.paragraph + 1 }));
 
 // ── rendering ─────────────────────────────────────────────────────────────
 function renderChrome() {
@@ -434,7 +435,10 @@ async function start() {
 
   // The ribbon has a button per check; "Anonymisierung prüfen" opens taskpane.html?mode=anon.
   const asked = new URLSearchParams(location.search).get('mode');
-  state.mode = asked === 'anon' || asked === 'cites' ? asked : recall('mode') === 'anon' ? 'anon' : 'cites';
+  // In Word the button says which check: "Zitate prüfen" opens the page without a mode, so it is
+  // the cite check there, whatever was used last. In a browser the last mode is kept.
+  state.mode = asked === 'anon' || asked === 'cites' ? asked
+    : state.host === 'word' ? 'cites' : recall('mode') === 'anon' ? 'anon' : 'cites';
   anon.start(state.host);
   $('mode-cites').addEventListener('click', () => setMode('cites'));
   $('mode-anon').addEventListener('click', () => setMode('anon'));

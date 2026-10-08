@@ -309,5 +309,45 @@
     }
    }
   ]
+ },
+ {
+  "name": "Word test 2026-10-08: combining umlaut, date forms, one-letter e-mail, a party with the judge's name, non-breaking spaces",
+  "parts": [
+   {
+    "text": "Hans Müller bestritt dies.",
+    "where": {
+     "part": "body",
+     "index": 0
+    }
+   },
+   {
+    "text": "Geburtsdatum: 1980-03-12 und Geburtsdatum: 12/03/1980; am 3. März 1971 geboren.",
+    "where": {
+     "part": "body",
+     "index": 1
+    }
+   },
+   {
+    "text": "Konto a@example.invalid und x@example.org.",
+    "where": {
+     "part": "body",
+     "index": 2
+    }
+   },
+   {
+    "text": "Bundesrichter Seiler entscheidet. Der Beschwerdeführer Seiler bestritt dies.",
+    "where": {
+     "part": "body",
+     "index": 3
+    }
+   },
+   {
+    "text": "Anna Keller und Peter Brunner.",
+    "where": {
+     "part": "body",
+     "index": 4
+    }
+   }
+  ]
  }
 ]

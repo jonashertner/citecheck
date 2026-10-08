@@ -83,12 +83,48 @@ function walk(el, visit) {
   }
 }
 
-// A run is hidden when its properties say <w:vanish/> (and not w:val="0"/"false").
-function hiddenRun(run) {
-  const props = kid(run, 'w:rPr');
+// <w:vanish/> in run properties: true, false (w:val="0") or null (not said).
+function vanish(props) {
   const v = props && kid(props, 'w:vanish');
-  return Boolean(v) && !/w:val="(?:0|false|off)"/.test(v.attrs);
+  return v ? !/w:val="(?:0|false|off)"/.test(v.attrs) : null;
 }
+
+// Whether a style hides its text, following basedOn: {id: true|false} for the styles that say so.
+function hiddenStyles(stylesXml) {
+  const own = new Map();
+  if (stylesXml) {
+    walk(parseXml(stylesXml), (el) => {
+      if (el.name !== 'w:style') return true;
+      const based = kid(el, 'w:basedOn');
+      own.set(attr(el, 'w:styleId'), { vanish: vanish(kid(el, 'w:rPr')), based: based ? attr(based, 'w:val') : null });
+      return false;
+    });
+  }
+  const hidden = (id, depth = 0) => {
+    const st = id && own.get(id);
+    if (!st || depth > 20) return null;
+    return st.vanish !== null ? st.vanish : hidden(st.based, depth + 1);
+  };
+  return hidden;
+}
+
+// A run is hidden when its properties say <w:vanish/>, or else its character style,
+// or else its paragraph's style: Word's order.
+function hiddenRun(run, styles = () => null, paragraphStyle = null) {
+  const props = kid(run, 'w:rPr');
+  const direct = vanish(props);
+  if (direct !== null) return direct;
+  const rStyle = props && kid(props, 'w:rStyle');
+  const byRun = rStyle ? styles(attr(rStyle, 'w:val')) : null;
+  if (byRun !== null) return byRun;
+  return Boolean(paragraphStyle && styles(paragraphStyle));
+}
+
+const paragraphStyleOf = (p) => {
+  const pPr = kid(p, 'w:pPr');
+  const ps = pPr && kid(pPr, 'w:pStyle');
+  return ps ? attr(ps, 'w:val') : null;
+};
 
 // ── reading ───────────────────────────────────────────────────────────────
 const TEXT_PARTS = [
@@ -102,7 +138,7 @@ const TEXT_PARTS = [
 const NOTE_TYPES = /w:type="(?:separator|continuationSeparator|continuationNotice)"/;
 
 // The paragraphs of one part: what is shown, what is hidden, what was deleted.
-function paragraphs(tree) {
+function paragraphs(tree, styles) {
   const out = [];
   const note = { n: -1, at: null, paras: 0 };
   const visit = (el, para, state) => {
@@ -118,12 +154,12 @@ function paragraphs(tree) {
         const inNote = state.note === null ? out.length : (note.paras = (note.at === state.note ? note.paras + 1 : 0), note.at = state.note, note.paras);
         const p = { shown: '', hidden: '', deleted: '', fields: '', note: state.note, author: state.author, inNote, seq: out.length };
         out.push(p);
-        visit(k, p, state);
+        visit(k, p, { ...state, pStyle: paragraphStyleOf(k) });
         continue;
       }
       if (!para) { visit(k, para, state); continue; }
       if (k.name === 'w:del' || k.name === 'w:moveFrom') { visit(k, para, { ...state, deleted: true }); continue; }
-      if (k.name === 'w:r') { visit(k, para, { ...state, hidden: state.hidden || hiddenRun(k) }); continue; }
+      if (k.name === 'w:r') { visit(k, para, { ...state, hidden: state.hidden || hiddenRun(k, styles, state.pStyle) }); continue; }
       if (k.name === 'w:t' || k.name === 'w:delText') {
         const s = textOf(k);
         if (state.deleted || k.name === 'w:delText') para.deleted += s;
@@ -140,14 +176,50 @@ function paragraphs(tree) {
       visit(k, para, state);
     }
   };
-  visit(tree, null, { deleted: false, hidden: false, note: null, author: null });
+  visit(tree, null, { deleted: false, hidden: false, note: null, author: null, pStyle: null });
   return out;
+}
+
+// A link target as a reader would read it: "Emma%20Muster" is "Emma Muster".
+function readableTarget(target) {
+  try { return decodeURIComponent(target); } catch { return target; }
+}
+
+// The target with the confirmed names replaced, encoded again where it was encoded.
+function replaceTarget(target, pats) {
+  const readable = readableTarget(target);
+  const replaced = replaceAll(readable, pats);
+  if (replaced === readable) return target;
+  return readable === target ? replaced : encodeURI(replaced);
 }
 
 const PROPERTIES = {
   'docProps/core.xml': ['dc:creator', 'cp:lastModifiedBy', 'dc:title', 'dc:subject', 'cp:keywords', 'dc:description', 'cp:category', 'cp:contentStatus'],
   'docProps/app.xml': ['Company', 'Manager', 'HyperlinkBase'],
 };
+
+// For each header and footer file, the first section that uses it and how
+// ({'word/header2.xml': {section: 1, type: 'default'}}), for showing a place in Word.
+async function headerSections(buffer, zip) {
+  const out = {};
+  if (!zip.has('word/_rels/document.xml.rels')) return out;
+  const targets = {};
+  walk(parseXml(await readEntry(buffer, zip.get('word/_rels/document.xml.rels'))), (el) => {
+    if (el.name === 'Relationship') targets[attr(el, 'Id')] = resolve('word/_rels/document.xml.rels', attr(el, 'Target') || '');
+  });
+  let section = 0;
+  walk(parseXml(await readEntry(buffer, zip.get('word/document.xml'))), (el) => {
+    if (el.name !== 'w:sectPr') return true;
+    for (const k of el.kids) {
+      if (k.t !== 'el' || (k.name !== 'w:headerReference' && k.name !== 'w:footerReference')) continue;
+      const file = targets[attr(k, 'r:id')];
+      if (file && !(file in out)) out[file] = { section, type: attr(k, 'w:type') || 'default' };
+    }
+    section++;
+    return false;
+  });
+  return out;
+}
 
 // [{text, where}] in reading order: what the reader sees first, then what the file carries besides.
 export async function readFile(buffer, name = '') {
@@ -158,11 +230,12 @@ export async function readFile(buffer, name = '') {
   const add = (list, text, where) => { if (text && /[\p{L}\p{N}]/u.test(text)) list.push({ text, where }); };
   const order = (n) => TEXT_PARTS.findIndex(([re]) => re.test(n));
   const parts = [...zip.keys()].filter((n) => order(n) >= 0).sort((a, b) => order(a) - order(b) || a.localeCompare(b, 'en', { numeric: true }));
+  const styles = hiddenStyles(zip.has('word/styles.xml') ? await readEntry(buffer, zip.get('word/styles.xml')) : null);
 
   for (const file of parts) {
     const kind = TEXT_PARTS[order(file)][1];
     const tree = parseXml(await readEntry(buffer, zip.get(file)));
-    paragraphs(tree).forEach((p, index) => {
+    paragraphs(tree, styles).forEach((p, index) => {
       // In a note, `index` counts the note's own paragraphs, as Word's notes collection does.
       const where = p.note !== null && p.note !== undefined && kind !== 'comment'
         ? { part: kind, file, note: p.note, index: p.inNote, seq: p.seq }
@@ -180,6 +253,8 @@ export async function readFile(buffer, name = '') {
         for (const a of ['descr', 'title']) add(besides, attr(el, a), { part: 'alt', file });
       }
       if (el.name === 'w:del' || el.name === 'w:ins' || el.name === 'w:comment') add(besides, attr(el, 'w:author'), { part: 'property', name: 'author of a change', file });
+      // A content control's name and tag: set by a template or a case-management system.
+      if (el.name === 'w:alias' || el.name === 'w:tag') add(besides, attr(el, 'w:val'), { part: 'property', name: 'content control', file });
     });
   }
   for (const [file, names] of Object.entries(PROPERTIES)) {
@@ -209,7 +284,8 @@ export async function readFile(buffer, name = '') {
     if (/_rels\/[^/]*\.rels$/.test(file)) {
       walk(parseXml(await readEntry(buffer, entry)), (el) => {
         const target = el.name === 'Relationship' && attr(el, 'Target');
-        if (target && (/^mailto:/i.test(target) || /attachedTemplate$/.test(attr(el, 'Type') || ''))) add(besides, target, { part: 'link', file });
+        // Where links lead (mailto:, https://…) and the template's path: not shown on the page.
+        if (target && (attr(el, 'TargetMode') === 'External' || /^mailto:/i.test(target) || /attachedTemplate$/.test(attr(el, 'Type') || ''))) add(besides, readableTarget(target), { part: 'link', file });
       });
     }
   }
@@ -217,6 +293,7 @@ export async function readFile(buffer, name = '') {
   const files = [...zip.keys()];
   return {
     parts: [...shown, ...besides],
+    sections: await headerSections(buffer, zip),
     notes: {
       images: files.filter((f) => /^word\/media\//.test(f)).length,
       embedded: files.filter((f) => /^word\/embeddings\//.test(f)).length,
@@ -229,7 +306,7 @@ export async function readFile(buffer, name = '') {
 const REMOVE_ELEMENTS = new Set(['w:del', 'w:moveFrom', 'w:moveFromRangeStart', 'w:moveFromRangeEnd', 'w:moveToRangeStart',
   'w:moveToRangeEnd', 'w:commentRangeStart', 'w:commentRangeEnd', 'w:rPrChange', 'w:pPrChange', 'w:sectPrChange',
   'w:tblPrChange', 'w:tblGridChange', 'w:trPrChange', 'w:tcPrChange', 'w:numberingChange', 'w:docVars',
-  'w:attachedTemplate', 'w:trackRevisions', 'w:proofState']);
+  'w:attachedTemplate', 'w:trackRevisions', 'w:proofState', 'w:alias', 'w:tag', 'w:dataBinding']);
 const UNWRAP_ELEMENTS = new Set(['w:ins', 'w:moveTo']);
 const REMOVE_PARTS = /^(?:word\/comments(?:Extended|Ids|Extensible)?\.xml|word\/people\.xml|docProps\/thumbnail\.\w+|docProps\/custom\.xml|customXml\/.*|word\/glossary\/.*|word\/_rels\/comments.*|word\/_rels\/people.*)$/;
 const BLANK_PROPERTIES = new Set([...PROPERTIES['docProps/core.xml'], ...PROPERTIES['docProps/app.xml']]);
@@ -241,20 +318,21 @@ const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 function patterns(replacements) {
   return replacements.filter((r) => r.forms && r.forms.length).map((r) => {
     const any = [...new Set(r.forms)].sort((a, b) => b.length - a.length).map(escapeRe).join('|');
-    return { re: new RegExp(`(?<![\\p{L}\\p{N}_])(?:${any})(?:[ \\-\u2011](?:${any}))*(?![\\p{L}\\p{N}_])`, 'gu'), placeholder: r.placeholder };
+    return { re: new RegExp(`(?<![\\p{L}\\p{N}])(?:${any})(?:[ \\u00a0\\-\u2011](?:${any}))*(?![\\p{L}\\p{N}])`, 'gu'), placeholder: r.placeholder };
   });
 }
 
 const replaceAll = (s, pats) => pats.reduce((acc, p) => acc.replace(p.re, p.placeholder), s);
 
-// Removes and unwraps in place: tracked changes accepted, comments and hidden runs gone.
-function clean(el) {
+// Removes and unwraps in place: tracked changes accepted, comments and hidden runs gone
+// (hidden by their own properties or by a style).
+function clean(el, styles, pStyle = null) {
   const kids = [];
   for (const k of el.kids) {
     if (k.t !== 'el') { kids.push(k); continue; }
     if (REMOVE_ELEMENTS.has(k.name)) continue;
-    if (k.name === 'w:r' && (hiddenRun(k) || kid(k, 'w:commentReference'))) continue;
-    clean(k);
+    if (k.name === 'w:r' && (hiddenRun(k, styles, pStyle) || kid(k, 'w:commentReference'))) continue;
+    clean(k, styles, k.name === 'w:p' ? paragraphStyleOf(k) : pStyle);
     if (UNWRAP_ELEMENTS.has(k.name)) kids.push(...k.kids);
     else kids.push(k);
   }
@@ -273,7 +351,7 @@ function segments(p) {
     else if (el.name === 'w:tab') text = '\t';
     else if (el.name === 'w:br' || el.name === 'w:cr') text = ' ';
     else if (el.name === 'w:noBreakHyphen') text = '\u2011';
-    if (text !== null) { out.push({ node: el.name === 'w:t' ? el : null, start: pos, text }); pos += text.length; }
+    if (text !== null) { out.push({ node: el.name === 'w:t' ? el : null, el, start: pos, text }); pos += text.length; }
     return el.name !== 'w:t';
   });
   return out;
@@ -287,7 +365,14 @@ function replacePlaces(p, places) {
     for (const seg of segments(p)) {
       const s = Math.max(place.start, seg.start);
       const e = Math.min(place.end, seg.start + seg.text.length);
-      if (s >= e || !seg.node) continue;
+      if (s >= e) continue;
+      if (!seg.node) {
+        // A non-breaking hyphen inside the name ("Müller‑Meier") goes with it: an empty text node in its place.
+        if (seg.el.name === 'w:noBreakHyphen' && s === seg.start && e === seg.start + seg.text.length) {
+          Object.assign(seg.el, { name: 'w:t', attrs: '', kids: [], self: true });
+        }
+        continue;
+      }
       const text = textOf(seg.node);
       const a = s - seg.start;
       const b = e - seg.start;
@@ -297,9 +382,9 @@ function replacePlaces(p, places) {
   }
 }
 
-function anonymizePart(xml, pats, places) {
+function anonymizePart(xml, pats, places, styles) {
   const tree = parseXml(xml);
-  clean(tree);
+  clean(tree, styles);
   let seq = 0;
   walk(tree, (el) => {
     // Separator notes are not paragraphs of the text; the reader skips them too.
@@ -341,11 +426,12 @@ export async function anonymizedCopy(buffer, replacements) {
   }
   const removed = new Set([...zip.keys()].filter((n) => REMOVE_PARTS.test(n)));
   const changed = new Map();
+  const styles = hiddenStyles(zip.has('word/styles.xml') ? await readEntry(buffer, zip.get('word/styles.xml')) : null);
 
   for (const [file, entry] of zip) {
     if (removed.has(file)) continue;
     if (TEXT_PARTS.some(([re, kind]) => kind !== 'comment' && re.test(file)) || file === 'word/settings.xml') {
-      changed.set(file, anonymizePart(await readEntry(buffer, entry), pats, places.get(file) || new Map()));
+      changed.set(file, anonymizePart(await readEntry(buffer, entry), pats, places.get(file) || new Map(), styles));
     } else if (PROPERTIES[file]) {
       const tree = parseXml(await readEntry(buffer, entry));
       walk(tree, (el) => { if (BLANK_PROPERTIES.has(el.name)) { el.kids = []; } return true; });
@@ -359,7 +445,7 @@ export async function anonymizedCopy(buffer, replacements) {
           const target = attr(rel, 'Target') || '';
           if (/attachedTemplate$/.test(attr(rel, 'Type') || '')) return false;
           if (attr(rel, 'TargetMode') !== 'External' && removed.has(resolve(file, target))) return false;
-          if (/^mailto:/i.test(target)) setAttr(rel, 'Target', replaceAll(target, pats));
+          if (attr(rel, 'TargetMode') === 'External' || /^mailto:/i.test(target)) setAttr(rel, 'Target', replaceTarget(target, pats));
           return true;
         });
       });

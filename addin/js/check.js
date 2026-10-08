@@ -8,7 +8,7 @@
 //          missing    nothing in the list under this label; near labels are offered
 //          unchecked  looks like a reference, in a form the list cannot answer
 import { bgeKey, docketKey, parseBgeKey } from './keys.js';
-import { findCitations, findLoose, pinpointParent } from './parser.js';
+import { findCitations, findLoose, parseReference, pinpointParent } from './parser.js';
 
 const FEDERAL_FAMILY = new Set(['bger', 'bge', 'bge_egmr']);
 const DIGITS = '0123456789';
@@ -184,6 +184,26 @@ function occurrencesBefore(text, needle, position) {
   return n;
 }
 
+// Runs of spaces as one ("BGE 140  III 115"), with a map back to the paragraph as written.
+function collapse(text) {
+  if (!/[ \t\u00a0\u202f]{2}/.test(text)) return { text, at: null };
+  let out = '';
+  const at = [];
+  for (let i = 0; i < text.length; i++) {
+    if (/[ \t\u00a0\u202f]/.test(text[i]) && i > 0 && /[ \t\u00a0\u202f]/.test(text[i - 1])) continue;
+    at.push(i);
+    out += text[i];
+  }
+  at.push(text.length);
+  return { text: out, at };
+}
+
+// What the finder leaves after a reference and the draft still says of it: an Erwägung
+// written out ("Erwägung 99"), pages as "pp.", a date after the Erwägung.
+const SUFFIX = new RegExp(String.raw`^(?:,?[ \u00a0]*(?:Erwägung|Erwaegung|considérant|considerando)[ \u00a0]*\d+(?:\.\d+)*[a-z]{0,2})?` +
+  String.raw`(?:,?[ \u00a0]*(?:pp\.|pagg\.|SS\.)[ \u00a0]*\d{1,4}(?:[ \u00a0]*(?:ff?\.|ss?\.))?)?` +
+  String.raw`(?:,?[ \u00a0]+(?:vom|du|del|de|of)[ \u00a0]+(?:\d{1,2}(?:\.|er)?[ \u00a0]*[A-Za-zÀ-ÿ]+[ \u00a0]+\d{4}|\d{1,2}\.\d{1,2}\.\d{4}))?`);
+
 // paragraphs: [{text, where}] in reading order; `where` is opaque to this module.
 // Returns {findings, counts, paragraphs}; a finding carries its place in the
 // document (paragraph, start, end, position 0..1) and the check result.
@@ -194,7 +214,24 @@ export function checkDocument(paragraphs, index) {
   const offsets = [];
   lengths.reduce((sum, n, i) => { offsets[i] = sum; return sum + n; }, 0);
 
-  const found = findCitations(texts);
+  // The finder is the research client's; spaces and suffixes are handled around it.
+  const collapsed = texts.map(collapse);
+  const back = (f) => {
+    const c = collapsed[f.paragraph];
+    if (!c.at) return f;
+    const start = c.at[f.start];
+    const end = c.at[f.end - 1] + 1;
+    return { ...f, start, end, text: texts[f.paragraph].slice(start, end) };
+  };
+  const found = findCitations(collapsed.map((c) => c.text)).map(back);
+  for (const f of found) {
+    const m = SUFFIX.exec(texts[f.paragraph].slice(f.end));
+    if (!m || !m[0].trim()) continue;
+    const text = texts[f.paragraph].slice(f.start, f.end + m[0].length);
+    const parsed = parseReference(text);
+    if (parsed.bge && f.parsed.bge ? parsed.bge.page !== f.parsed.bge.page : parsed.dockets[0] !== f.parsed.dockets[0]) continue;
+    Object.assign(f, { end: f.end + m[0].length, text, parsed });
+  }
   // "BGE 129 III 320, 324": the page after a comma is the pinpoint page. Read here, not
   // in the finder, which stays the research client's; a number that cannot be a page
   // of the decision (a year, another volume) is left alone.
@@ -211,6 +248,7 @@ export function checkDocument(paragraphs, index) {
     return { ...f, ...memo.get(memoKey) };
   });
 
+  // Loose labels outside every reference, the references as read (with their suffixes) in the written text.
   for (const loose of findLoose(texts, found)) {
     const rows = loose.collection ? [] : index.lookup(docketKey(loose.text));
     findings.push({

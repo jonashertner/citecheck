@@ -163,3 +163,14 @@ test('report 2026-10-08: phone numbers are no references; page after a comma and
   const absent = only('Urteil A-4843/2020 E. 99');
   assert.ok(absent.issues[0].nearby.includes('1'), JSON.stringify(absent.issues[0].nearby));
 });
+
+test('Word test 2026-10-08: suffixes the finder leaves are read; runs of spaces do not hide a reference', () => {
+  const erw = only('BGE 140 III 115 Erwägung 9');
+  assert.deepEqual([erw.text, erw.status, erw.issues[0] && erw.issues[0].kind], ['BGE 140 III 115 Erwägung 9', 'differs', 'pinpoint']);
+  const pp = only('ATF 140 III 115 pp. 999');
+  assert.deepEqual([pp.text, pp.status, pp.issues[0].kind], ['ATF 140 III 115 pp. 999', 'differs', 'page']);
+  const spaced = only('BGE 140  III 115 E. 2.3');
+  assert.deepEqual([spaced.text, spaced.status], ['BGE 140  III 115 E. 2.3', 'found']);
+  const dated = only('BGer 4A_747/2012 E. 3 vom 6. April 2013');
+  assert.deepEqual([dated.text, dated.status, dated.issues.map((i) => i.kind)], ['BGer 4A_747/2012 E. 3 vom 6. April 2013', 'differs', ['date']]);
+});

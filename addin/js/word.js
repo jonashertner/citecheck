@@ -14,22 +14,26 @@ function supports(version) {
 export const canComment = () => inWord() && supports('1.4');
 const canReadFootnotes = () => supports('1.5');
 
-// Paragraphs of the body, then of the footnotes, as [{text, where}].
+// Paragraphs of the body, then of the footnotes and endnotes, as [{text, where}].
 export async function readDocument() {
   return Word.run(async (context) => {
     const body = context.document.body.paragraphs;
     body.load('items/text');
     let notes = null;
+    let endnotes = null;
     if (canReadFootnotes()) {
       notes = context.document.body.footnotes;
       notes.load('items');
+      endnotes = context.document.body.endnotes;
+      endnotes.load('items');
     }
     await context.sync();
     const out = body.items.map((p, index) => ({ text: p.text || '', where: { part: 'body', index } }));
-    if (notes && notes.items.length) {
-      const perNote = notes.items.map((n) => { const ps = n.body.paragraphs; ps.load('items/text'); return ps; });
+    for (const [part, list] of [['footnote', notes], ['endnote', endnotes]]) {
+      if (!list || !list.items.length) continue;
+      const perNote = list.items.map((n) => { const ps = n.body.paragraphs; ps.load('items/text'); return ps; });
       await context.sync();
-      perNote.forEach((ps, note) => ps.items.forEach((p, index) => out.push({ text: p.text || '', where: { part: 'footnote', note, index } })));
+      perNote.forEach((ps, note) => ps.items.forEach((p, index) => out.push({ text: p.text || '', where: { part, note, index } })));
     }
     return out;
   });
@@ -39,8 +43,8 @@ export async function readDocument() {
 async function locate(context, finding) {
   const { where } = finding;
   let paragraphs;
-  if (where.part === 'footnote') {
-    const notes = context.document.body.footnotes;
+  if (where.part === 'footnote' || where.part === 'endnote') {
+    const notes = where.part === 'footnote' ? context.document.body.footnotes : context.document.body.endnotes;
     notes.load('items');
     await context.sync();
     if (!notes.items[where.note]) return null;
@@ -108,15 +112,37 @@ export function readFile() {
   });
 }
 
-// The nth occurrence of a word in the body, or in the first section's header or footer.
-export async function showText(text, nth, part) {
+// Word's search syntax: ^ is its escape; a non-breaking space is ^s, a non-breaking hyphen ^~.
+// (Spelled with split/join: the test that keeps this module from writing to the document flags any .replace.)
+const SEARCH_CODES = [['^', '^^'], ['\u00a0', '^s'], ['\u202f', '^s'], ['\u2011', '^~']];
+export const searchText = (text) => SEARCH_CODES.reduce((s, [from, to]) => s.split(from).join(to), text.slice(0, 200));
+export const wholeWord = (text) => /^[\p{L}\p{N}]+$/u.test(text);
+
+const HEADER_TYPES = { default: 'Primary', first: 'FirstPage', even: 'EvenPages' };
+
+// Selects the nth occurrence of `text` in one part of the document: the body, a footnote
+// or endnote (by its number), or the header or footer of a section (by index and type).
+export async function showPlace({ text, nth, part, note = 0, section = 0, type = 'default' }) {
   return Word.run(async (context) => {
-    let scope = context.document.body;
-    if (part === 'header' || part === 'footer') {
-      const section = context.document.sections.getFirst();
-      scope = part === 'header' ? section.getHeader('Primary') : section.getFooter('Primary');
+    let scope;
+    if (part === 'footnote' || part === 'endnote') {
+      if (!canReadFootnotes()) return false;
+      const notes = part === 'footnote' ? context.document.body.footnotes : context.document.body.endnotes;
+      notes.load('items');
+      await context.sync();
+      if (!notes.items[note]) return false;
+      scope = notes.items[note].body;
+    } else if (part === 'header' || part === 'footer') {
+      const sections = context.document.sections;
+      sections.load('items');
+      await context.sync();
+      const s = sections.items[section] || sections.items[0];
+      if (!s) return false;
+      scope = part === 'header' ? s.getHeader(HEADER_TYPES[type] || 'Primary') : s.getFooter(HEADER_TYPES[type] || 'Primary');
+    } else {
+      scope = context.document.body;
     }
-    const hits = scope.search(text.slice(0, 255), { matchCase: true, matchWholeWord: !/\s/.test(text) });
+    const hits = scope.search(searchText(text), { matchCase: true, matchWholeWord: wholeWord(text) });
     hits.load('items');
     await context.sync();
     const range = hits.items[Math.min(nth, hits.items.length - 1)];
@@ -125,6 +151,16 @@ export async function showText(text, nth, part) {
     await context.sync();
     return true;
   });
+}
+
+// The document's file name, as Word knows it ("" for a new, unsaved one).
+export function fileName() {
+  try {
+    const url = (Office.context.document && Office.context.document.url) || '';
+    return decodeURIComponent(url.split(/[?#]/)[0].split(/[\\/]/).pop() || '');      // SharePoint adds ?web=1
+  } catch {
+    return '';
+  }
 }
 
 export const canOpenCopy = () => inWord() && supports('1.3');

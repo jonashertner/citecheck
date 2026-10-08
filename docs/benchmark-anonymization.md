@@ -9,11 +9,11 @@ figures only, no value from any ruling.
 
 | Language | Rulings | Entries shown: median | p90 | p99 | none at all | words / numbers / identifiers |
 |---|---|---|---|---|---|---|
-| de | 3,274 | 6 | 19 | 51 | 5% | 27,503 / 821 / 858 |
+| de | 3,274 | 6 | 19 | 51 | 5% | 27,506 / 821 / 883 |
 | fr | 1,972 | 4 | 12 | 33 | 12% | 9,988 / 874 / 243 |
 | it | 478 | 6 | 19 | 45 | 6% | 3,789 / 297 / 142 |
 
-Time: 28 ms per ruling (Python, one core).
+Time: 29 ms per ruling (Python, one core).
 
 ## A missed occurrence
 
@@ -22,16 +22,16 @@ by how many residents carry them (Müller often), half uniformly (rare names as 
 
 | Written form | Shown | by bearers | uniform |
 |---|---|---|---|
-| surname | 96.2 % (2,605/2,709) | 95.8 % (1,304/1,361) | 96.5 % (1,301/1,348) |
-| first and surname | 96.8 % (2,623/2,709) | 96.5 % (1,313/1,361) | 97.2 % (1,310/1,348) |
-| possessive | 88.5 % (2,398/2,709) | 87.4 % (1,190/1,361) | 89.6 % (1,208/1,348) |
-| capitals | 95.1 % (2,576/2,709) | 95.0 % (1,293/1,361) | 95.2 % (1,283/1,348) |
-| initial and surname | 97.2 % (2,634/2,709) | 97.0 % (1,320/1,361) | 97.5 % (1,314/1,348) |
-| double surname | 96.4 % (2,612/2,709) | 96.1 % (1,308/1,361) | 96.7 % (1,304/1,348) |
-| e-mail | 98.2 % (2,661/2,709) | 98.6 % (1,342/1,361) | 97.8 % (1,319/1,348) |
-| umlaut spelt out | 95.6 % (2,590/2,709) | 95.3 % (1,297/1,361) | 95.9 % (1,293/1,348) |
+| surname | 96.1 % (2,604/2,709) | 95.7 % (1,303/1,361) | 96.5 % (1,301/1,348) |
+| first and surname | 96.8 % (2,622/2,709) | 96.4 % (1,312/1,361) | 97.2 % (1,310/1,348) |
+| possessive | 88.5 % (2,397/2,709) | 87.4 % (1,189/1,361) | 89.6 % (1,208/1,348) |
+| capitals | 95.1 % (2,575/2,709) | 94.9 % (1,292/1,361) | 95.2 % (1,283/1,348) |
+| initial and surname | 97.2 % (2,633/2,709) | 96.9 % (1,319/1,361) | 97.5 % (1,314/1,348) |
+| double surname | 96.4 % (2,611/2,709) | 96.0 % (1,307/1,361) | 96.7 % (1,304/1,348) |
+| e-mail | 98.6 % (2,672/2,709) | 99.0 % (1,347/1,361) | 98.3 % (1,325/1,348) |
+| umlaut spelt out | 95.6 % (2,589/2,709) | 95.2 % (1,296/1,361) | 95.9 % (1,293/1,348) |
 
-A forgotten person (every occurrence of one placeholder turned back): shown in 90.1 % (901/1,000).
+A forgotten person (every occurrence of one placeholder turned back): shown in 91.1 % (911/1,000).
 
 ## Identifiers
 

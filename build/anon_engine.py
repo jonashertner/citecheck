@@ -43,10 +43,10 @@ TITLES = {"dr", "prof", "pd", "lic", "iur", "med", "phil", "rer", "pol", "oec", 
 # Identifier detectors in the order they claim text; a later match that overlaps
 # an earlier claim is dropped.
 IDENTIFIERS = ("ahv", "ahv_old", "iban", "insured", "zemis", "document_no", "account",
-               "parcel", "birthdate", "email", "url", "phone", "plate", "address")
-LABEL = {"ahv_old": "ahv", "document_no": "document", "url": "profile"}
+               "parcel", "birthdate", "birthdate_after", "email", "url", "phone", "plate", "address")
+LABEL = {"ahv_old": "ahv", "document_no": "document", "url": "profile", "birthdate_after": "birthdate"}
 # Detectors whose pattern names its value in group 1 ("Parzelle Nr. 1234": the number).
-VALUE_GROUP = {"ahv_old", "insured", "zemis", "document_no", "account", "parcel", "birthdate"}
+VALUE_GROUP = {"ahv_old", "insured", "zemis", "document_no", "account", "parcel", "birthdate", "birthdate_after"}
 RANK = {"identifier": 0, "word": 1, "number": 1}
 
 
@@ -126,10 +126,38 @@ class Vocabulary:
 
 
 # ── the check ─────────────────────────────────────────────────────────────
+def _compose(s: str):
+    """The text in composed form and, per character of it, where it starts in `s`;
+    (s, None) when it is composed already."""
+    if unicodedata.is_normalized("NFC", s):
+        return s, None
+    out, where = [], []
+    i = 0
+    while i < len(s):
+        j = i + 1
+        while j < len(s) and unicodedata.category(s[j])[0] == "M":
+            j += 1
+        piece = unicodedata.normalize("NFC", s[i:j])
+        out.append(piece)
+        where.extend([i] * len(piece))
+        i = j
+    where.append(len(s))
+    return "".join(out), where
+
+
 class _Text:
     """All parts joined by a blank line, with a map back to (part, offset)."""
 
     def __init__(self, parts):
+        # Checked in composed form ("u" + U+0308 is "ü"); places are given in the part as written.
+        self.written = [p["text"] for p in parts]
+        self.maps = []
+        normal = []
+        for p in parts:
+            composed, where = _compose(p["text"])
+            self.maps.append(where)
+            normal.append(p if where is None else {**p, "text": composed})
+        parts = normal
         self.parts = parts
         self.starts = []
         pos = 0
@@ -143,7 +171,10 @@ class _Text:
 
     def locate(self, start: int, end: int) -> dict:
         i = self.index(start)
-        return {"part": i, "start": start - self.starts[i], "end": end - self.starts[i]}
+        a, b = start - self.starts[i], end - self.starts[i]
+        if self.maps[i] is not None:
+            a, b = self.maps[i][a], self.maps[i][b]
+        return {"part": i, "start": a, "end": b, "text": self.written[i][a:b]}
 
     def end_of_kind(self, start: int) -> int:
         """Where the run of parts of the same kind as the one at `start` ends."""
@@ -423,7 +454,9 @@ def check(parts: list[dict], vocabulary) -> dict:
         elif "^" + low in vocabulary and (P["det_before"].search(text[max(0, a - 25):a]) or _adjective(text, b, vocabulary)):
             counts["common"] += 1                   # "^streit": "der Streit" is the noun, "Streit" alone the name
             continue
-        if low in office_words:
+        # The bench's or counsel's surname elsewhere is theirs, unless a party word stands
+        # before it: "Bundesrichter Hans Müller ... Der Kläger Müller".
+        if low in office_words and not P["party_before"].search(text[max(0, a - 40):a]):
             named[office_words[low]].add(token)
             continue
         after = text[b:b + 90]
@@ -482,7 +515,6 @@ def _assemble(t, shown, placeholders, initials, counts, named, public, anonymize
         k = key_of(s)
         e = entries.setdefault(k, {"key": k, "kind": s["kind"], "label": s["label"], "occurrences": []})
         where = t.locate(s["start"], s["end"])
-        where["text"] = s["text"]
         where["visible"] = t.kind(s["start"]) in VISIBLE
         e["occurrences"].append(where)
 
@@ -516,10 +548,10 @@ def _assemble(t, shown, placeholders, initials, counts, named, public, anonymize
     }
 
 
-_LINK = re.compile(r"[ \-‑]")
-_HALF_AFTER = re.compile(r"[\-‑]([^\W\d_]{2,})")
-_HALF_BEFORE = re.compile(r"(?<!\w)([^\W\d_]{2,})[\-‑]\Z")
-_INITIAL_BEFORE = re.compile(r"(?<![\w.])([A-Z])\.[  ]?\Z")
+_LINK = re.compile(r"[ \u00a0\u202f\-\u2011]")
+_HALF_AFTER = re.compile(r"[\-\u2011]([^\W\d_]{2,})")
+_HALF_BEFORE = re.compile(r"(?<!\w)([^\W\d_]{2,})[\-\u2011]\Z")
+_INITIAL_BEFORE = re.compile(r"(?<![\w.])([A-Z])\.[ \u00a0\u202f]?\Z")
 
 
 def _people(t: _Text, words: list[dict], has) -> tuple[list[dict], list[dict]]:
@@ -614,7 +646,6 @@ def _people(t: _Text, words: list[dict], has) -> tuple[list[dict], list[dict]]:
         for i in ms:
             m = mentions[i]
             where = t.locate(m["start"], m["end"])
-            where["text"] = text[m["start"]:m["end"]]
             where["visible"] = t.kind(m["start"]) in VISIBLE
             places.append(where)
             texts.append(where["text"])

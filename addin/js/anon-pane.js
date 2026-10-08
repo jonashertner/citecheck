@@ -172,7 +172,7 @@ export async function runCheck() {
     try { buffer = await fileBytes(); } catch (error) { say(t('a_err_file', { message: (error && error.message) || String(error) })); return; }
     if (!buffer) return;
     state.checked = buffer;
-    state.read = await readFile(buffer, state.host === 'word' ? '' : state.file.name);
+    state.read = await readFile(buffer, state.host === 'word' ? word.fileName() : state.file.name);
     state.result = check(state.read.parts, state.vocabulary);
     const before = state.decide;
     state.rows = buildRows(state.result, state.read.parts);
@@ -253,9 +253,11 @@ async function makeCopy() {
       });
     }
     const left = leftAt.size;
+    // What the copy still holds by the clerk's choice: shown, neither ticked nor confirmed.
+    const open = state.rows.filter((r) => !r.removed && !state.decide.get(r.key).replace && !state.decide.get(r.key).ok).length;
     const name = ((state.file && state.file.name) || 'Entscheid.docx').replace(/\.docx$/i, '') + ' anonymisiert.docx';
     if (previousUrl) URL.revokeObjectURL(previousUrl);
-    state.copy = { left, name };
+    state.copy = { left, open, ticked: ticked.length, name };
     if (!left && word.canOpenCopy()) {
       state.copy.opened = await word.openCopy(copy);
     } else {
@@ -270,17 +272,30 @@ async function makeCopy() {
 }
 
 // ── showing a place in Word ───────────────────────────────────────────────
+// Which occurrence of the text this place is in its part of the document (the body,
+// one note, one header), counted as Word's search counts them.
+function nthOf(o) {
+  const parts = state.read.parts;
+  const w = parts[o.part].where;
+  const same = (x) => x.where.part === w.part && x.where.file === w.file && x.where.note === w.note;
+  const escaped = o.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = word.wholeWord(o.text) ? new RegExp('(?<![\\p{L}\\p{N}_])' + escaped + '(?![\\p{L}\\p{N}_])', 'gu') : new RegExp(escaped, 'gu');
+  let n = 0;
+  for (let i = 0; i <= o.part; i++) {
+    if (!same(parts[i])) continue;
+    n += (parts[i].text.slice(0, i === o.part ? o.start : undefined).match(re) || []).length;
+  }
+  return n;
+}
+
 async function show(row, i) {
   const o = row.occurrences[i];
   if (state.host !== 'word' || !o.visible) return;
-  // The nth place with this spelling in this part, as Word's search counts them.
-  const nth = row.occurrences.slice(0, i).filter((p) => p.text === o.text && p.kind === o.kind).length;
-  const where = state.read.parts[o.part].where;
+  const w = state.read.parts[o.part].where;
+  const section = (state.read.sections || {})[w.file] || {};
   try {
-    const ok = o.kind === 'footnote'
-      ? await word.show({ text: o.text, where, nth: 0 })
-      : await word.showText(o.text, nth, o.kind);
-    if (!ok) say(t('show_failed'));
+    const ok = await word.showPlace({ text: o.text, nth: nthOf(o), part: o.kind, note: w.note, section: section.section, type: section.type });
+    say(ok ? '' : t('show_failed'));
   } catch (error) {
     say(t('err_generic', { message: (error && error.message) || String(error) }));
   }
@@ -557,9 +572,12 @@ function draw() {
   result.hidden = !state.copy;
   if (state.copy) {
     const c = state.copy;
-    result.className = 'copy-result ' + (c.left ? 'copy-left' : 'copy-clean');
-    if (c.left) result.append(t('a_copy_left', { n: c.left }) + ' ');
-    else result.append((c.opened ? t('a_copy_opened') : t('a_copy_ready')) + ' ');
+    result.className = 'copy-result ' + (c.left || c.open ? 'copy-left' : 'copy-clean');
+    // Says what was done, never more: the ticked places, what the clerk left, the saved file still to check.
+    const said = [c.left ? t('a_copy_left', { n: c.left }) : !c.ticked ? t('a_copy_none') : c.opened ? t('a_copy_opened') : t('a_copy_ready')];
+    if (c.open) said.push(c.open === 1 ? t('a_copy_open_one') : t('a_copy_open', { n: c.open }));
+    if (state.host === 'word') said.push(t('a_copy_saved'));
+    result.append(said.join(' ') + ' ');
     if (c.url) {
       const a = el('a', null, t('a_download'));
       a.href = c.url;
