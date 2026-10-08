@@ -139,3 +139,25 @@ test('Word test 2026-10-08: style-hidden text, content controls, https targets, 
   assert.doesNotMatch(xml('word/document.xml'), /Benno|Musterperson|lukas|noBreakHyphen|w:alias|w:tag/);
   assert.doesNotMatch(xml('word/_rels/document.xml.rels'), /Emma|emma\.link/);
 });
+
+test('deep check N3: a copy written from the document as it is now keeps a bold set after the check', async () => {
+  const make = (name, ...flags) => {
+    const path = join(dir, name);
+    execFileSync(python, [new URL('./make_fixture_surfaces_docx.py', import.meta.url).pathname, path, ...flags]);
+    const raw = readFileSync(path);
+    return raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength);
+  };
+  const checked = make('n3-checked.docx');
+  const now = make('n3-now.docx', '--bold');
+  const read = await readFile(checked, '');
+  const later = await readFile(now, '');
+  // what the pane compares: every part reads the same, so the places stand
+  assert.deepEqual(later.parts.map((p) => [p.where.part, p.where.file, p.where.seq, p.text]), read.parts.map((p) => [p.where.part, p.where.file, p.where.seq, p.text]));
+  const hans = check(read.parts, vocabulary).people.find((p) => /Hans/.test(p.name));
+  const w = (o) => read.parts[o.part].where;
+  const copy = await anonymizedCopy(now, [{ placeholder: 'B.________', forms: ['Hans'], places: hans.mentions.map((o) => ({ file: w(o).file, seq: w(o).seq, start: o.start, end: o.end })) }]);
+  writeFileSync(join(dir, 'n3-copy.docx'), new Uint8Array(copy));
+  const xml = execFileSync(python, ['-c', 'import sys,zipfile; sys.stdout.write(zipfile.ZipFile(sys.argv[1]).read("word/document.xml").decode())', join(dir, 'n3-copy.docx')], { encoding: 'utf8' });
+  assert.match(xml, /<w:rPr><w:b\/><\/w:rPr><w:t xml:space="preserve">Sichtbar\. <\/w:t>/);
+  assert.match(xml, /B\.________ sagt aus\./);
+});

@@ -152,3 +152,14 @@ test('gaps 2026-10-08: an address after "wohnhaft" beside an office, a genitive 
   // after "Herr" a word is a name ("Saldo" is in the word list), an office is not
   assert.deepEqual(r.entries.filter((e) => e.occurrences.some((o) => o.part === 3)).map((e) => e.text), ['Saldo']);
 });
+
+test('deep check N1: a public surname does not hide another person who bears it', () => {
+  const r = run(11);
+  const anna = r.people.find((p) => /Anna/.test(p.name));
+  assert.deepEqual(anna.mentions.slice(0, 2).map((m) => [m.part, m.text]), [[0, 'Anna Müller'], [1, 'Anna Müller']]);
+  // the bare "Müller" may be either person: shown, not explained as the judge's
+  assert.ok(r.people.concat(r.ambiguous).some((p) => p.mentions.some((m) => m.part === 1 && m.text === 'Müller')));
+  assert.deepEqual(r.explained.court, ['Hans', 'Müller']);
+  const judge = run(12);
+  assert.deepEqual([judge.people, judge.ambiguous], [[], []]);             // only the judge: nothing to show
+});

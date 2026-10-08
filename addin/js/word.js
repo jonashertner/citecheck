@@ -39,7 +39,10 @@ export async function readDocument() {
   });
 }
 
-// The range of a finding: the nth occurrence of its written text in its paragraph.
+// The range of a finding: the nth occurrence of its written text in its paragraph, and only
+// while that paragraph reads as it did at the check. A paragraph that changed, or an occurrence
+// that is gone, is no place to select or comment: null, and the pane asks for a new check.
+// (Never the last hit instead, never the first hit elsewhere: that was another citation.)
 async function locate(context, finding) {
   const { where } = finding;
   let paragraphs;
@@ -52,20 +55,14 @@ async function locate(context, finding) {
   } else {
     paragraphs = context.document.body.paragraphs;
   }
-  paragraphs.load('items');
+  paragraphs.load('items/text');
   await context.sync();
   const paragraph = paragraphs.items[where.index];
-  if (paragraph) {
-    const hits = paragraph.search(finding.text, { matchCase: true });
-    hits.load('items');
-    await context.sync();
-    if (hits.items.length) return hits.items[Math.min(finding.nth, hits.items.length - 1)];
-  }
-  // The paragraph moved since the check: the first occurrence anywhere in the body.
-  const anywhere = context.document.body.search(finding.text, { matchCase: true });
-  anywhere.load('items');
+  if (!paragraph || (finding.paragraphText !== undefined && paragraph.text !== finding.paragraphText)) return null;
+  const hits = paragraph.search(searchText(finding.text), { matchCase: true });
+  hits.load('items');
   await context.sync();
-  return anywhere.items[0] || null;
+  return hits.items[finding.nth] || null;
 }
 
 export async function show(finding) {
@@ -78,15 +75,18 @@ export async function show(finding) {
   });
 }
 
-export async function comment(finding, text) {
+// The one write to the open document: a comment on a range found and checked just now.
+async function commentOn(find, text) {
   return Word.run(async (context) => {
-    const range = await locate(context, finding);
+    const range = await find(context);
     if (!range) return false;
     range.insertComment(text);
     await context.sync();
     return true;
   });
 }
+
+export const comment = (finding, text) => commentOn((context) => locate(context, finding), text);
 
 // ── the anonymization check ───────────────────────────────────────────────
 // The whole file as Word holds it, through the common file API that every Word
@@ -120,38 +120,46 @@ export const wholeWord = (text) => /^[\p{L}\p{N}]+$/u.test(text);
 
 const HEADER_TYPES = { default: 'Primary', first: 'FirstPage', even: 'EvenPages' };
 
-// Selects the nth occurrence of `text` in one part of the document: the body, a footnote
-// or endnote (by its number), or the header or footer of a section (by index and type).
-export async function showPlace({ text, nth, part, note = 0, section = 0, type = 'default' }) {
-  return Word.run(async (context) => {
-    let scope;
-    if (part === 'footnote' || part === 'endnote') {
-      if (!canReadFootnotes()) return false;
-      const notes = part === 'footnote' ? context.document.body.footnotes : context.document.body.endnotes;
-      notes.load('items');
-      await context.sync();
-      if (!notes.items[note]) return false;
-      scope = notes.items[note].body;
-    } else if (part === 'header' || part === 'footer') {
-      const sections = context.document.sections;
-      sections.load('items');
-      await context.sync();
-      const s = sections.items[section] || sections.items[0];
-      if (!s) return false;
-      scope = part === 'header' ? s.getHeader(HEADER_TYPES[type] || 'Primary') : s.getFooter(HEADER_TYPES[type] || 'Primary');
-    } else {
-      scope = context.document.body;
-    }
-    const hits = scope.search(searchText(text), { matchCase: true, matchWholeWord: wholeWord(text) });
-    hits.load('items');
+// The nth occurrence of `text` in one part of the document: the body, a footnote or endnote
+// (by its number), or the header or footer of a section (by index and type). Null when that
+// part no longer holds the text as often as the checked file did (`total`): the place moved.
+async function findPlace(context, { text, nth, total, part, note = 0, section = 0, type = 'default' }) {
+  let scope;
+  if (part === 'footnote' || part === 'endnote') {
+    if (!canReadFootnotes()) return null;
+    const notes = part === 'footnote' ? context.document.body.footnotes : context.document.body.endnotes;
+    notes.load('items');
     await context.sync();
-    const range = hits.items[Math.min(nth, hits.items.length - 1)];
+    if (!notes.items[note]) return null;
+    scope = notes.items[note].body;
+  } else if (part === 'header' || part === 'footer') {
+    const sections = context.document.sections;
+    sections.load('items');
+    await context.sync();
+    const s = sections.items[section] || sections.items[0];
+    if (!s) return null;
+    scope = part === 'header' ? s.getHeader(HEADER_TYPES[type] || 'Primary') : s.getFooter(HEADER_TYPES[type] || 'Primary');
+  } else {
+    scope = context.document.body;
+  }
+  const hits = scope.search(searchText(text), { matchCase: true, matchWholeWord: wholeWord(text) });
+  hits.load('items');
+  await context.sync();
+  if (total !== undefined && hits.items.length !== total) return null;
+  return hits.items[nth] || null;
+}
+
+export async function showPlace(place) {
+  return Word.run(async (context) => {
+    const range = await findPlace(context, place);
     if (!range) return false;
     range.select();
     await context.sync();
     return true;
   });
 }
+
+export const commentPlace = (place, text) => commentOn((context) => findPlace(context, place), text);
 
 // The document's file name, as Word knows it ("" for a new, unsaved one).
 export function fileName() {

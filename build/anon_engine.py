@@ -355,12 +355,50 @@ def _runs(text: str, at: int):
     return names, end
 
 
-def _roles(t: _Text, vocabulary) -> tuple[dict, dict, set, list]:
+_NAME_BEFORE = re.compile(r"([^\W\d_][\w'’\-]*\.?)[ \u00a0]+\Z")
+
+
+def _names_before(text: str, a: int, vocabulary) -> tuple[int, list[str]]:
+    """The given names and initials written just before the name at `a`, and where they start:
+    "Anna Müller" -> ["anna"], "H. Müller" -> ["h."]; titles are passed over, a word stops."""
+    names, first = [], a
+    while len(names) < 3:
+        m = _NAME_BEFORE.search(text[max(0, first - 40):first])
+        if not m:
+            break
+        token = m.group(1)
+        low = token.lower()
+        if low.rstrip(".") in TITLES or low in PARTICLES:
+            first -= len(m.group(0))
+            continue
+        initial = re.fullmatch(r"[A-Z]\.", token)
+        if not is_upper(token[0]) or (not initial and (token.endswith(".") or low in vocabulary)):
+            break
+        names.insert(0, low)
+        first -= len(m.group(0))
+    return first, names
+
+
+def _same_given(name: str, public: set) -> bool:
+    """The given name (or its initial) of the public person with this surname."""
+    if re.fullmatch(r"[a-z]\.", name):
+        return any(g[:1] == name[0] for g in public)
+    return name in public
+
+
+def _roles(t: _Text, vocabulary) -> tuple[dict, dict, set, list, dict]:
     """Names made public by their office, per category; categories the document
-    anonymizes; the spans of office and names ("Rechtsanwalt Dr. Peter Kunz")."""
+    anonymizes; the spans of office and names ("Rechtsanwalt Dr. Peter Kunz");
+    per public surname, the given names written with it ({"müller": {"hans"}})."""
     text = t.text
     found = {"court": set(), "counsel": set(), "official": set()}
     surnames = {"court": set(), "counsel": set(), "official": set()}
+    given = {"court": {}, "counsel": {}, "official": {}}
+
+    def person(category, run):
+        surnames[category].add(run[-1])                # only the surname stands for the person elsewhere
+        given[category].setdefault(run[-1].lower(), set()).update(n.lower() for n in run[:-1])
+
     anonymized = set()
     spans = []
     for m in P["role"].finditer(text):
@@ -378,7 +416,7 @@ def _roles(t: _Text, vocabulary) -> tuple[dict, dict, set, list]:
             # "…Kunz, Beschwerdeführer," and "avocat à Genève": common words are not names.
             if not all(n.lower() in vocabulary for n in names):
                 found[category].update(names)
-                surnames[category].add(names[-1])       # only the surname stands for the person elsewhere
+                person(category, names)
             spans.append((category, m.start(), end))
             join = P["run_join"].match(text[end:end + 20])
             if not join or P["role"].match(text, end + join.end()):
@@ -400,27 +438,31 @@ def _roles(t: _Text, vocabulary) -> tuple[dict, dict, set, list]:
             token = w.group()
             # A run of names ends at punctuation: "Wullschleger (Vorsitz)" is a name and an office.
             if run and re.search(r"[^\s\-]", text[start + last:start + w.start()]):
-                surnames["court"].add(run[-1])
+                person("court", run)
                 run = []
             last = w.end()
             if token.lower() in TITLES:
                 continue
             if P["role"].match(text, start + w.start()):       # "Bundesrichterin" is the office, not a name
                 if run:
-                    surnames["court"].add(run[-1])
+                    person("court", run)
                     run = []
                 continue
             if is_upper(token[0]) and token.lower() not in vocabulary:
                 found["court"].add(token)
                 run.append(token)
             elif run:
-                surnames["court"].add(run[-1])       # the last of a run of names is the surname
+                person("court", run)                 # the last of a run of names is the surname
                 run = []
         if run:
-            surnames["court"].add(run[-1])
+            person("court", run)
         spans.append(("court", start, end))
     keep = lambda d: {k: v for k, v in d.items() if k not in anonymized}  # noqa: E731
-    return keep(found), keep(surnames), anonymized, [(a, b) for k, a, b in spans if k not in anonymized]
+    public_given: dict[str, set] = {}
+    for k, by_surname in keep(given).items():
+        for surname, names in by_surname.items():
+            public_given.setdefault(surname, set()).update(names)
+    return keep(found), keep(surnames), anonymized, [(a, b) for k, a, b in spans if k not in anonymized], public_given
 
 
 def check(parts: list[dict], vocabulary) -> dict:
@@ -438,7 +480,7 @@ def check(parts: list[dict], vocabulary) -> dict:
     initials = sum(1 for _ in P["initial"].finditer(text))
 
     shown = _identifiers(t, taken, explained, public)
-    by_office, office_surnames, anonymized_roles, office_spans = _roles(t, vocabulary)
+    by_office, office_surnames, anonymized_roles, office_spans, public_given = _roles(t, vocabulary)
     for a, b in office_spans:
         explained.add(a, b)
     office_words = {w.lower(): k for k, ws in office_surnames.items() for w in ws}
@@ -446,6 +488,8 @@ def check(parts: list[dict], vocabulary) -> dict:
     counts = {"common": 0, "numbers": 0}
     inflected = []                                   # common words ending in s/es: "Müllers"
     lower_case = []                                  # words in lower case, judged once the names are known
+    deferred = []                                    # a public surname, judged once every Müller is known
+    contested = set()                                # public surnames a private person also bears
     named: dict[str, set] = {"court": set(), "counsel": set(), "official": set(), "author": set(), "case": set()}
     for k, ws in by_office.items():
         named[k].update(ws)
@@ -475,11 +519,16 @@ def check(parts: list[dict], vocabulary) -> dict:
         elif "^" + low in vocabulary and (P["det_before"].search(text[max(0, a - 25):a]) or _adjective(text, b, vocabulary)):
             counts["common"] += 1                   # "^streit": "der Streit" is the noun, "Streit" alone the name
             continue
-        # The bench's or counsel's surname elsewhere is theirs, unless a party word stands
-        # before it: "Bundesrichter Hans Müller ... Der Kläger Müller".
-        if low in office_words and not P["party_before"].search(text[max(0, a - 40):a]):
-            named[office_words[low]].add(token)
-            continue
+        # The bench's or counsel's surname elsewhere is theirs, unless it is someone else's: another
+        # given name ("Bundesrichter Hans Müller ... Anna Müller") or a party word before the name
+        # ("Die Klägerin Hans Müller"). Then every bare "Müller" is shown too: it may be either.
+        if low in office_words:
+            first, names = _names_before(text, a, vocabulary)
+            if not (P["party_before"].search(text[max(0, first - 40):first])
+                    or any(not _same_given(n, public_given.get(low, set())) for n in names)):
+                deferred.append((a, b, token, low))
+                continue
+            contested.add(low)
         after = text[b:b + 90]
         if P["author_after"].match(after) or _cited(text, a, b):
             named["author"].add(token)
@@ -488,6 +537,12 @@ def check(parts: list[dict], vocabulary) -> dict:
             named["case"].add(token)
             continue
         shown.append({"kind": "word", "label": None, "start": a, "end": b, "text": token})
+
+    for a, b, token, low in deferred:
+        if low in contested:
+            shown.append({"kind": "word", "label": None, "start": a, "end": b, "text": token})
+        else:
+            named[office_words[low]].add(token)
 
     # A common word whose stem is shown here is that name inflected ("Müllers" beside "Müller").
     stems = {fold(x["text"]) for x in shown if x["kind"] == "word"}

@@ -382,5 +382,36 @@
     }
    }
   ]
+ },
+ {
+  "name": "Deep check 2026-10-09 N1: a judge and a private party share a surname (NFC and NFD)",
+  "parts": [
+   {
+    "text": "Bundesrichter Hans Müller entscheidet. Die Beschwerdeführerin Anna Müller bestritt dies.",
+    "where": {
+     "part": "body",
+     "index": 0
+    }
+   },
+   {
+    "text": "Anna Müller bestritt dies; Müller auch.",
+    "where": {
+     "part": "body",
+     "index": 1
+    }
+   }
+  ]
+ },
+ {
+  "name": "Deep check 2026-10-09 N1 control: only the judge carries the surname",
+  "parts": [
+   {
+    "text": "Bundesrichter Hans Müller entscheidet. Müller bestritt dies; H. Müller auch.",
+    "where": {
+     "part": "body",
+     "index": 0
+    }
+   }
+  ]
  }
 ]

@@ -12,7 +12,7 @@ W = ('xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" '
 DECL = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
 
 DOCUMENT = DECL + f"""<w:document {W}><w:body>
-<w:p><w:r><w:t xml:space="preserve">Sichtbar. </w:t></w:r><w:r><w:rPr><w:rStyle w:val="Versteckt"/></w:rPr><w:t>Benno Unsichtbar benno@example.org</w:t></w:r></w:p>
+<w:p><w:r>{{BOLD}}<w:t xml:space="preserve">Sichtbar. </w:t></w:r><w:r><w:rPr><w:rStyle w:val="Versteckt"/></w:rPr><w:t>Benno Unsichtbar benno@example.org</w:t></w:r></w:p>
 <w:sdt><w:sdtPr><w:alias w:val="Partei Emma Musterperson"/><w:tag w:val="lukas.sdt@example.org"/><w:id w:val="1"/></w:sdtPr><w:sdtContent><w:p><w:r><w:t>Inhalt des Steuerelements.</w:t></w:r></w:p></w:sdtContent></w:sdt>
 <w:p><w:hyperlink r:id="rIdLink"><w:r><w:t>Weiterer Link</w:t></w:r></w:hyperlink></w:p>
 <w:p><w:r><w:t xml:space="preserve">Der Sohn Lea Brunner</w:t></w:r><w:r><w:noBreakHyphen/></w:r><w:r><w:t xml:space="preserve">Keller bestritt dies.</w:t></w:r></w:p>
@@ -37,6 +37,9 @@ DOC_RELS = DECL + """<Relationships xmlns="http://schemas.openxmlformats.org/pac
 <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
 <Relationship Id="rIdLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.org/qa/Emma%20Musterperson?email=emma.link@example.org" TargetMode="External"/>
 </Relationships>"""
+
+# --bold: the same text with its first run made bold, as a clerk might after the check (N3, 2026-10-09)
+DOCUMENT = DOCUMENT.replace("{BOLD}", "<w:rPr><w:b/></w:rPr>" if "--bold" in sys.argv else "")
 
 with zipfile.ZipFile(sys.argv[1], "w", zipfile.ZIP_DEFLATED) as z:
     for name, text in {"[Content_Types].xml": CONTENT_TYPES, "_rels/.rels": RELS, "word/document.xml": DOCUMENT,

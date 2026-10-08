@@ -209,10 +209,11 @@ async function makeCopy() {
   state.copy = null;
   render();
   try {
-    // The copy is made from the file as it was checked: places are paragraph and offset in it.
-    // If the document changed in Word since, a fresh check comes first.
-    const buffer = state.checked;
-    if (state.host === 'word' && !(await same(await word.readFile(), buffer))) {
+    // The copy is made from the document as it is now, so an edit made after the check (bold,
+    // a picture) is in it. Places are paragraph and offset in the checked text: if any part reads
+    // differently now, the places may be wrong, and a fresh check comes first.
+    const buffer = state.host === 'word' ? await word.readFile() : state.checked;
+    if (state.host === 'word' && !(await same(buffer, state.checked))) {
       say(t('a_changed'));
       return;
     }
@@ -273,28 +274,32 @@ async function makeCopy() {
 
 // ── showing a place in Word ───────────────────────────────────────────────
 // Which occurrence of the text this place is in its part of the document (the body,
-// one note, one header), counted as Word's search counts them.
-function nthOf(o) {
+// one note, one header), counted as Word's search counts them,
+// and how often the text stands in that part in all: Word must find it as often, or the place moved.
+function placeOf(o) {
   const parts = state.read.parts;
   const w = parts[o.part].where;
   const same = (x) => x.where.part === w.part && x.where.file === w.file && x.where.note === w.note;
   const escaped = o.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const re = word.wholeWord(o.text) ? new RegExp('(?<![\\p{L}\\p{N}_])' + escaped + '(?![\\p{L}\\p{N}_])', 'gu') : new RegExp(escaped, 'gu');
-  let n = 0;
-  for (let i = 0; i <= o.part; i++) {
-    if (!same(parts[i])) continue;
-    n += (parts[i].text.slice(0, i === o.part ? o.start : undefined).match(re) || []).length;
-  }
-  return n;
+  let nth = 0;
+  let total = 0;
+  parts.forEach((x, i) => {
+    if (!same(x)) return;
+    const count = (s) => (s.match(re) || []).length;
+    total += count(x.text);
+    if (i < o.part) nth += count(x.text);
+    if (i === o.part) nth += count(x.text.slice(0, o.start));
+  });
+  const section = (state.read.sections || {})[w.file] || {};
+  return { text: o.text, nth, total, part: o.kind, note: w.note, section: section.section, type: section.type };
 }
 
 async function show(row, i) {
   const o = row.occurrences[i];
   if (state.host !== 'word' || !o.visible) return;
-  const w = state.read.parts[o.part].where;
-  const section = (state.read.sections || {})[w.file] || {};
   try {
-    const ok = await word.showPlace({ text: o.text, nth: nthOf(o), part: o.kind, note: w.note, section: section.section, type: section.type });
+    const ok = await word.showPlace(placeOf(o));
     say(ok ? '' : t('show_failed'));
   } catch (error) {
     say(t('err_generic', { message: (error && error.message) || String(error) }));
@@ -409,8 +414,7 @@ function renderRow(row) {
       c.type = 'button';
       c.addEventListener('click', async () => {
         const o = row.occurrences[0];
-        const where = state.read.parts[o.part].where;
-        if (await word.comment({ text: o.text, where: { part: 'body', index: where.index }, nth: 0 }, t('a_comment', { label: describe(row) }))) {
+        if (await word.commentPlace(placeOf(o), t('a_comment', { label: describe(row) }))) {
           c.textContent = t('commented'); c.disabled = true;
         }
       });

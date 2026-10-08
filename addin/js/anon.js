@@ -271,10 +271,43 @@ function runs(text, pos) {
   return [names, end];
 }
 
+// The given names and initials written just before the name at `a`, and where they start:
+// "Anna Müller" -> ["anna"], "H. Müller" -> ["h."]; titles are passed over, a word stops.
+const NAME_BEFORE = /([\p{L}\p{Nl}\p{No}][\p{L}\p{N}_'’\-]*\.?)[ \u00a0]+$/u;
+function namesBefore(text, a, has) {
+  const names = [];
+  let first = a;
+  while (names.length < 3) {
+    const m = NAME_BEFORE.exec(text.slice(Math.max(0, first - 40), first));
+    if (!m) break;
+    const token = m[1];
+    const low = token.toLowerCase();
+    if (TITLES.has(low.replace(/\.+$/, '')) || PARTICLES.has(low)) { first -= m[0].length; continue; }
+    const initial = /^[A-Z]\.$/.test(token);
+    if (!isUpper(token[0]) || (!initial && (token.endsWith('.') || has(low)))) break;
+    names.unshift(low);
+    first -= m[0].length;
+  }
+  return [first, names];
+}
+
+// The given name (or its initial) of the public person with this surname.
+function sameGiven(name, pub) {
+  if (/^[a-z]\.$/.test(name)) return [...pub].some((g) => g.slice(0, 1) === name[0]);
+  return pub.has(name);
+}
+
 function roles(t, has) {
   const text = t.text;
   const found = { court: new Set(), counsel: new Set(), official: new Set() };
   const surnames = { court: new Set(), counsel: new Set(), official: new Set() };
+  const given = { court: new Map(), counsel: new Map(), official: new Map() };
+  const person = (category, run) => {
+    surnames[category].add(run[run.length - 1]);           // only the surname stands for the person elsewhere
+    const key = run[run.length - 1].toLowerCase();
+    if (!given[category].has(key)) given[category].set(key, new Set());
+    for (const n of run.slice(0, -1)) given[category].get(key).add(n.toLowerCase());
+  };
   const anonymized = new Set();
   const spans = [];
   for (const m of all('role', text)) {
@@ -288,7 +321,7 @@ function roles(t, has) {
       // "…Kunz, Beschwerdeführer," and "avocat à Genève": common words are not names.
       if (!names.every((n) => has(n.toLowerCase()))) {
         for (const n of names) found[category].add(n);
-        surnames[category].add(names[names.length - 1]);   // only the surname stands for the person elsewhere
+        person(category, names);
       }
       spans.push([category, m.index, end]);
       const join = matchStart('run_join', text.slice(end, end + 20));
@@ -310,28 +343,35 @@ function roles(t, has) {
       const token = w[0];
       // A run of names ends at punctuation: "Wullschleger (Vorsitz)" is a name and an office.
       if (run.length && /[^\s-]/.test(text.slice(start + last, start + w.index))) {
-        surnames.court.add(run[run.length - 1]);
+        person('court', run);
         run = [];
       }
       last = w.index + token.length;
       if (TITLES.has(token.toLowerCase())) continue;
       if (at('role', text, start + w.index)) {          // "Bundesrichterin" is the office, not a name
-        if (run.length) { surnames.court.add(run[run.length - 1]); run = []; }
+        if (run.length) { person('court', run); run = []; }
         continue;
       }
       if (isUpper(token[0]) && !has(token.toLowerCase())) {
         found.court.add(token);
         run.push(token);
       } else if (run.length) {
-        surnames.court.add(run[run.length - 1]);          // the last of a run of names is the surname
+        person('court', run);                             // the last of a run of names is the surname
         run = [];
       }
     }
-    if (run.length) surnames.court.add(run[run.length - 1]);
+    if (run.length) person('court', run);
     spans.push(['court', start, end]);
   }
-  for (const k of anonymized) { delete found[k]; delete surnames[k]; }
-  return [found, surnames, anonymized, spans.filter(([k]) => !anonymized.has(k)).map(([, a, b]) => [a, b])];
+  for (const k of anonymized) { delete found[k]; delete surnames[k]; delete given[k]; }
+  const publicGiven = new Map();
+  for (const bySurname of Object.values(given)) {
+    for (const [surname, names] of bySurname) {
+      if (!publicGiven.has(surname)) publicGiven.set(surname, new Set());
+      for (const n of names) publicGiven.get(surname).add(n);
+    }
+  }
+  return [found, surnames, anonymized, spans.filter(([k]) => !anonymized.has(k)).map(([, a, b]) => [a, b]), publicGiven];
 }
 
 export function check(parts, vocabulary) {
@@ -357,7 +397,7 @@ export function check(parts, vocabulary) {
   for (const _ of all('initial', text)) initials++;      // eslint-disable-line no-unused-vars
 
   const shown = identifiers(t, taken, explained, pub);
-  const [byOffice, officeSurnames, anonymizedRoles, officeSpans] = roles(t, has);
+  const [byOffice, officeSurnames, anonymizedRoles, officeSpans, publicGiven] = roles(t, has);
   for (const [a, b] of officeSpans) explained.add(a, b);
   const officeWords = new Map();
   for (const [k, ws] of Object.entries(officeSurnames)) for (const w of ws) officeWords.set(w.toLowerCase(), k);   // the later office wins, as in Python
@@ -365,6 +405,8 @@ export function check(parts, vocabulary) {
   const counts = { common: 0, numbers: 0 };
   const inflected = [];                              // common words ending in s/es: "Müllers"
   const lowerCase = [];                            // words in lower case, judged once the names are known
+  const deferred = [];                             // a public surname, judged once every Müller is known
+  const contested = new Set();                     // public surnames a private person also bears
   const named = { court: new Set(), counsel: new Set(), official: new Set(), author: new Set(), case: new Set() };
   for (const [k, ws] of Object.entries(byOffice)) for (const w of ws) named[k].add(w);
 
@@ -390,13 +432,27 @@ export function check(parts, vocabulary) {
       counts.common++;                                 // "^streit": "der Streit" is the noun, "Streit" alone the name
       continue;
     }
-    // The bench's or counsel's surname elsewhere is theirs, unless a party word stands
-    // before it: "Bundesrichter Hans Müller ... Der Kläger Müller".
-    if (officeWords.has(low) && !test('party_before', text.slice(Math.max(0, a - 40), a))) { named[officeWords.get(low)].add(token); continue; }
+    // The bench's or counsel's surname elsewhere is theirs, unless it is someone else's: another
+    // given name ("Bundesrichter Hans Müller ... Anna Müller") or a party word before the name
+    // ("Die Klägerin Hans Müller"). Then every bare "Müller" is shown too: it may be either.
+    if (officeWords.has(low)) {
+      const [first, names] = namesBefore(text, a, has);
+      const pub = publicGiven.get(low) || new Set();
+      if (!(test('party_before', text.slice(Math.max(0, first - 40), first)) || names.some((n) => !sameGiven(n, pub)))) {
+        deferred.push([a, b, token, low]);
+        continue;
+      }
+      contested.add(low);
+    }
     const after = text.slice(b, b + 90);
     if (matchStart('author_after', after) || cited(text, a, b)) { named.author.add(token); continue; }
     if (matchStart('case_after', after)) { named.case.add(token); continue; }
     shown.push({ kind: 'word', label: null, start: a, end: b, text: token });
+  }
+
+  for (const [a, b, token, low] of deferred) {
+    if (contested.has(low)) shown.push({ kind: 'word', label: null, start: a, end: b, text: token });
+    else named[officeWords.get(low)].add(token);
   }
 
   // A common word whose stem is shown here is that name inflected ("Müllers" beside "Müller").

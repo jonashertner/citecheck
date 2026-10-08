@@ -269,6 +269,7 @@ export function checkDocument(paragraphs, index) {
     // ("BGE 140 III 115" inside "BGE 140 III 115 E. 6.4.1" before it stands alone).
     f.nth = occurrencesBefore(text, f.text, f.start);
     f.context = { before: text.slice(Math.max(0, f.start - 48), f.start), after: text.slice(f.end, f.end + 48) };
+    f.paragraphText = text;      // what Word must still hold there before the pane selects or comments
   });
   const counts = { found: 0, differs: 0, missing: 0, unchecked: 0 };
   for (const f of findings) counts[f.status]++;
