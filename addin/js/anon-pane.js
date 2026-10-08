@@ -8,13 +8,23 @@
 
 import { check, fold } from './anon.js';
 import { openVocabulary } from './index.js';
-import { readFile, anonymizedCopy } from './docfile.js';
+import { readFile, anonymizedCopy, verifyCopy } from './docfile.js';
 import * as word from './word.js';
 import { formatNumber, t } from './i18n.js';
 
 const DATA_BASE = new URL('../data/', import.meta.url).href;
 const VISIBLE = new Set(['body', 'footnote', 'endnote', 'header', 'footer']);
 const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+// A to Z, then AA to ZZ: a ruling with more than 26 people, or a document that already uses
+// A to Z, still gives every person a label of its own.
+const LABELS = [...LETTERS, ...LETTERS.flatMap((a) => LETTERS.map((b) => a + b))];
+export const labelOf = (placeholder) => (/^[A-Z]{1,3}/.exec(placeholder || '') || [''])[0];
+
+// The labels still free, in order, given the placeholders in the document and those already chosen.
+export function freeLabels(inDocument, chosen) {
+  const used = new Set([...inDocument, ...chosen].map(labelOf));
+  return LABELS.filter((l) => !used.has(l));
+}
 const BLANK = '[…]';
 // What the copy drops by itself; field codes and link targets stay unless replaced.
 const REMOVED = new Set(['comment', 'deleted', 'hidden', 'alt', 'property', 'custom', 'filename']);
@@ -124,16 +134,24 @@ function placeholderOf(row) {
   return first ? first.placeholder : BLANK;
 }
 
-// Letters not used by the placeholders already in the document, in order of first appearance.
+// The labels to choose from: A to Z, every longer label in use, and the next free longer one.
+function choices() {
+  const inUse = new Set([...state.decide.values()].map((d) => labelOf(d.placeholder)).filter((l) => l.length > 1));
+  const docs = new Set(Object.keys(state.result.placeholders).map(labelOf));
+  const next = LABELS.slice(26).find((l) => !inUse.has(l) && !docs.has(l));
+  return LABELS.filter((l, i) => i < 26 || inUse.has(l) || l === next).map(letter);
+}
+
+// Labels not used by the placeholders already in the document, in order of first appearance.
 function assignPlaceholders() {
-  const used = new Set(Object.keys(state.result.placeholders).map((p) => p[0]));
-  for (const d of state.decide.values()) if (d.placeholder && d.placeholder !== BLANK) used.add(d.placeholder[0]);   // kept from the last check
-  const free = LETTERS.filter((l) => !used.has(l));
+  const kept = [...state.decide.values()].map((d) => d.placeholder).filter((x) => x && x !== BLANK);   // kept from the last check
+  const free = freeLabels(Object.keys(state.result.placeholders), kept);
   let next = 0;
   for (const row of state.rows) {
     const d = state.decide.get(row.key);
     if (d && (d.placeholder || row.ambiguous)) continue;
-    const placeholder = row.ambiguous ? null : row.kind === 'word' ? letter(free[next++ % free.length] || 'X') : BLANK;
+    // Past ZZ there is no label left: such a person gets […], never another person's letter.
+    const placeholder = row.ambiguous ? null : row.kind === 'word' && next < free.length ? letter(free[next++]) : BLANK;
     state.decide.set(row.key, { replace: d ? d.replace : false, ok: d ? d.ok : false, placeholder });
   }
 }
@@ -141,7 +159,7 @@ function assignPlaceholders() {
 function restyle(style) {
   state.style = style;
   for (const d of state.decide.values()) {
-    if (d.placeholder && d.placeholder !== BLANK) d.placeholder = letter(d.placeholder[0]);
+    if (d.placeholder && d.placeholder !== BLANK) d.placeholder = letter(labelOf(d.placeholder));
   }
 }
 
@@ -225,12 +243,12 @@ async function makeCopy() {
         const w = state.read.parts[o.part].where;
         const placeholder = placeAt(r, i);
         if (!byPlaceholder.has(placeholder)) byPlaceholder.set(placeholder, []);
-        byPlaceholder.get(placeholder).push({ file: w.file, seq: w.seq, start: o.start, end: o.end });
+        byPlaceholder.get(placeholder).push({ file: w.file, seq: w.seq, start: o.start, end: o.end, text: o.text });
       });
       if (!byPlaceholder.size) byPlaceholder.set(placeholderOf(r), []);
       return [...byPlaceholder].map(([placeholder, places], k) => ({ placeholder, forms: k ? [] : r.forms, places }));
     });
-    const copy = await anonymizedCopy(buffer, replacements);
+    const copy = await anonymizedCopy(buffer, replacements, { replaced: 0, skipped: [] });
     // The copy is read and checked like any document before it is handed out.
     const read = await readFile(copy, '');
     const again = check(read.parts, state.vocabulary);
@@ -258,6 +276,13 @@ async function makeCopy() {
     const open = state.rows.filter((r) => !r.removed && !state.decide.get(r.key).replace && !state.decide.get(r.key).ok).length;
     const name = ((state.file && state.file.name) || 'Entscheid.docx').replace(/\.docx$/i, '') + ' anonymisiert.docx';
     if (previousUrl) URL.revokeObjectURL(previousUrl);
+    // The copy against the original, independently of the check: every visible paragraph with
+    // exactly the ticked places replaced, nothing else changed. A copy that differs is not handed out.
+    const differ = verifyCopy(state.read, read, replacements);
+    if (differ.length) {
+      state.copy = { broken: differ.length };
+      return;
+    }
     state.copy = { left, open, ticked: ticked.length, name };
     if (!left && word.canOpenCopy()) {
       state.copy.opened = await word.openCopy(copy);
@@ -329,7 +354,7 @@ function describe(row) {
   if (row.kind === 'number') return t('lab_number');
   if (row.ambiguous) {
     const list = row.candidates.map((key) => state.rows.find((r) => r.key === key))
-      .map((r) => (placeholderOf(r) === BLANK ? '' : placeholderOf(r)[0] + ' ') + r.text);
+      .map((r) => (placeholderOf(r) === BLANK ? '' : labelOf(placeholderOf(r)) + ' ') + r.text);
     return t('lab_ambiguous', { list: list.join(', ') });
   }
   return row.person ? t('lab_person') : t('lab_word');
@@ -365,9 +390,9 @@ function renderRow(row) {
   const chip = el('select', 'a-chip');
   chip.dataset.focus = 'chip:' + row.key;
   chip.setAttribute('aria-label', t('a_replace') + ': ' + row.text + ', ' + t('a_by'));
-  const options = row.kind === 'word' ? [...LETTERS.map(letter), BLANK] : [BLANK, ...LETTERS.map(letter)];
+  const options = row.kind === 'word' ? [...choices(), BLANK] : [BLANK, ...choices()];
   for (const value of options) {
-    const opt = el('option', null, value === BLANK ? BLANK : value[0]);      // the letter; the row shows the whole placeholder
+    const opt = el('option', null, value === BLANK ? BLANK : labelOf(value));      // the label; the row shows the whole placeholder
     opt.value = value;
     opt.selected = value === placeAt(row, 0);
     chip.append(opt);
@@ -434,8 +459,8 @@ function placeChip(row, i) {
   const chip = el('select', 'a-chip a-chip-place');
   chip.dataset.focus = 'place:' + row.key + ':' + i;
   chip.setAttribute('aria-label', t('a_replace') + ': ' + row.occurrences[i].text + ', ' + placeName(row.occurrences[i]) + ', ' + t('a_by'));
-  for (const value of [...LETTERS.map(letter), BLANK]) {
-    const opt = el('option', null, value === BLANK ? BLANK : value[0]);
+  for (const value of [...choices(), BLANK]) {
+    const opt = el('option', null, value === BLANK ? BLANK : labelOf(value));
     opt.value = value;
     opt.selected = value === placeAt(row, i);
     chip.append(opt);
@@ -576,7 +601,11 @@ function draw() {
   result.hidden = !state.copy;
   if (state.copy) {
     const c = state.copy;
-    result.className = 'copy-result ' + (c.left || c.open ? 'copy-left' : 'copy-clean');
+    result.className = 'copy-result ' + (c.broken || c.left || c.open ? 'copy-left' : 'copy-clean');
+    if (c.broken) {
+      result.append(t('a_copy_broken', { n: c.broken }));
+      return;
+    }
     // Says what was done, never more: the ticked places, what the clerk left, the saved file still to check.
     const said = [c.left ? t('a_copy_left', { n: c.left }) : !c.ticked ? t('a_copy_none') : c.opened ? t('a_copy_opened') : t('a_copy_ready')];
     if (c.open) said.push(c.open === 1 ? t('a_copy_open_one') : t('a_copy_open', { n: c.open }));

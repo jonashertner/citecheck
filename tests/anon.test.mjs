@@ -163,3 +163,13 @@ test('deep check N1: a public surname does not hide another person who bears it'
   const judge = run(12);
   assert.deepEqual([judge.people, judge.ambiguous], [[], []]);             // only the judge: nothing to show
 });
+
+test('deep check A19/A20: labels past Z, never one already used', async () => {
+  const { freeLabels, labelOf } = await import('../addin/js/anon-pane.js');
+  const free = freeLabels([], []);
+  assert.deepEqual([free[0], free[25], free[26], free[27]], ['A', 'Z', 'AA', 'AB']);           // person 27 is AA, not A again
+  const all = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map((l) => l + '.________');
+  assert.equal(freeLabels(all, [])[0], 'AA');                                                  // A to Z in the document: AA, not X
+  assert.equal(freeLabels(['B.________'], ['A.________', 'AA.'])[0], 'C');
+  assert.deepEqual([labelOf('AB.________'), labelOf('C.'), labelOf('[…]')], ['AB', 'C', '']);
+});

@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { readFile, anonymizedCopy, parseXml, serialize, crc32 } from '../addin/js/docfile.js';
+import { readFile, anonymizedCopy, verifyCopy, parseXml, serialize, crc32 } from '../addin/js/docfile.js';
 import { entries, rawEntry } from '../addin/js/docx.js';
 import { check } from '../addin/js/anon.js';
 import { Vocabulary } from '../addin/js/vocabulary.js';
@@ -160,4 +160,78 @@ test('deep check N3: a copy written from the document as it is now keeps a bold 
   const xml = execFileSync(python, ['-c', 'import sys,zipfile; sys.stdout.write(zipfile.ZipFile(sys.argv[1]).read("word/document.xml").decode())', join(dir, 'n3-copy.docx')], { encoding: 'utf8' });
   assert.match(xml, /<w:rPr><w:b\/><\/w:rPr><w:t xml:space="preserve">Sichtbar\. <\/w:t>/);
   assert.match(xml, /B\.________ sagt aus\./);
+});
+
+// ── deep check 2026-10-09: surfaces and the integrity of the copy ─────────
+const integrity = async (mode) => {
+  const path = join(dir, `integrity-${mode}.docx`);
+  execFileSync(python, [new URL('./make_fixture_integrity_docx.py', import.meta.url).pathname, path, mode]);
+  const raw = readFileSync(path);
+  const buf = raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength);
+  return { buf, read: await readFile(buf, '') };
+};
+const placeOf = (read, part, text, find) => {
+  const p = read.parts.find((x) => x.where.part === part && x.text.includes(find));
+  const start = p.text.indexOf(find);
+  return { file: p.where.file, seq: p.where.seq, start, end: start + find.length, text: find };
+};
+const partXml = (buf, name) => {
+  writeFileSync(join(dir, 'x.docx'), new Uint8Array(buf));
+  return execFileSync(python, ['-c', 'import sys,zipfile; sys.stdout.write(zipfile.ZipFile(sys.argv[1]).read(sys.argv[2]).decode())', join(dir, 'x.docx'), name], { encoding: 'utf8' });
+};
+
+test('SURF-01: a hidden text box cleaned away does not move a place onto the next paragraph', async () => {
+  const { buf, read } = await integrity('textbox');
+  const pl = placeOf(read, 'body', 'Kontakt', 'lea.person@example.org');
+  const replacements = [{ placeholder: '[…]', forms: ['lea.person@example.org'], places: [pl] }];
+  const ledger = { replaced: 0, skipped: [] };
+  const copy = await anonymizedCopy(buf, replacements, ledger);
+  const again = await readFile(copy, '');
+  assert.deepEqual(where(again.parts, 'body').filter((x) => x.trim()), ['Vor dem Feld. ', 'Kontakt: […], bitte.', 'This separate paragraph must stay exactly as written.']);
+  assert.deepEqual([ledger.replaced, ledger.skipped.length], [1, 0]);
+  assert.deepEqual(verifyCopy(read, again, replacements), []);
+});
+
+test('verifyCopy: a copy that changed anything but the ticked places is caught', async () => {
+  const { buf, read } = await integrity('textbox');
+  const pl = placeOf(read, 'body', 'Kontakt', 'lea.person@example.org');
+  const copy = await anonymizedCopy(buf, [{ placeholder: '[…]', forms: [], places: [pl] }]);
+  const again = await readFile(copy, '');
+  // checked against a ticked place that was not replaced, and a stale place text: both differ
+  assert.equal(verifyCopy(read, again, [{ placeholder: '[…]', places: [pl] }, { placeholder: 'X', places: [{ ...pl, start: 0, end: 7 }] }]).length, 1);
+  const stale = { replaced: 0, skipped: [] };
+  await anonymizedCopy(buf, [{ placeholder: '[…]', places: [{ ...pl, text: 'someone.else@example.org' }] }], stale);
+  assert.deepEqual([stale.replaced, stale.skipped.length], [0, 1]);         // a place that no longer reads so is left alone
+});
+
+test('SURF-02: an e-mail in a simple field instruction is read and replaced', async () => {
+  const { buf, read } = await integrity('simple');
+  assert.ok(where(read.parts, 'field').some((f) => f.includes('lea.simple@example.org')));
+  const copy = await anonymizedCopy(buf, [{ placeholder: '[…]', forms: ['lea.simple@example.org'], places: [] }]);
+  assert.doesNotMatch(partXml(copy, 'word/document.xml'), /lea\.simple/);
+});
+
+test('SURF-03, SURF-04: hidden by the default style; w:val=\'false\' in single quotes is visible', async () => {
+  const d = await integrity('default');
+  assert.deepEqual([where(d.read.parts, 'body').filter((x) => x), where(d.read.parts, 'hidden')], [['Sichtbar mit eigener Vorlage.'], ['Versteckt durch die Standardvorlage.']]);
+  const copy = await anonymizedCopy(d.buf, []);
+  assert.doesNotMatch(partXml(copy, 'word/document.xml'), /Standardvorlage/);
+  const q = await integrity('quotes');
+  assert.deepEqual([where(q.read.parts, 'body').filter((x) => x), where(q.read.parts, 'hidden')], [['Sichtbar trotz vanish.'], ['Versteckt.']]);
+  assert.match(partXml(await anonymizedCopy(q.buf, []), 'word/document.xml'), /Sichtbar trotz vanish\./);
+});
+
+test('SURF-05: the Word namespace under another prefix is read and replaced', async () => {
+  const { buf, read } = await integrity('alias');
+  assert.deepEqual(where(read.parts, 'body').filter((x) => x), ['Hans Muster wohnt hier.', 'Zweiter Absatz.']);
+  const pl = placeOf(read, 'body', 'Hans', 'Hans Muster');
+  const copy = await anonymizedCopy(buf, [{ placeholder: 'A.________', forms: [], places: [pl] }]);
+  const again = await readFile(copy, '');
+  assert.deepEqual(where(again.parts, 'body').filter((x) => x), ['A.________ wohnt hier.', 'Zweiter Absatz.']);
+});
+
+test('URL: a name replaced in a link target leaves its escaped delimiters as they were', async () => {
+  const { buf } = await integrity('url');
+  const copy = await anonymizedCopy(buf, [{ placeholder: 'A.________', forms: ['Emma'], places: [] }]);
+  assert.match(partXml(copy, 'word/_rels/document.xml.rels'), /Target="https:\/\/example\.org\/a%2Fb\?x=1%26y%3D2&amp;name=A\.________%20Muster"/);
 });

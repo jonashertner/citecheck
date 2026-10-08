@@ -66,13 +66,14 @@ function setText(el, s) {
   el.self = false;
   if (!/xml:space=/.test(el.attrs)) el.attrs += ' xml:space="preserve"';
 }
+// Attribute values in either quote: w:val="false" and w:val='false' are the same.
 function attr(el, name) {
-  const m = new RegExp(`\\s${name.replace(/[.:]/g, '\\$&')}="([^"]*)"`).exec(el.attrs);
-  return m ? unescape(m[1]) : null;
+  const m = new RegExp(`\\s${name.replace(/[.:]/g, '\\$&')}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`).exec(el.attrs);
+  return m ? unescape(m[1] !== undefined ? m[1] : m[2]) : null;
 }
 function setAttr(el, name, value) {
-  const re = new RegExp(`(\\s${name.replace(/[.:]/g, '\\$&')}=")[^"]*(")`);
-  if (re.test(el.attrs)) el.attrs = el.attrs.replace(re, `$1${escapeAttr(value)}$2`);
+  const re = new RegExp(`(\\s${name.replace(/[.:]/g, '\\$&')}\\s*=\\s*)(?:"[^"]*"|'[^']*')`);
+  if (re.test(el.attrs)) el.attrs = el.attrs.replace(re, `$1"${escapeAttr(value)}"`);
 }
 const kid = (el, name) => el.kids.find((k) => k.t === 'el' && k.name === name);
 
@@ -83,20 +84,42 @@ function walk(el, visit) {
   }
 }
 
+// WordprocessingML under another prefix ("q:p" for "w:p") is the same document: it is read
+// and written under the usual "w:". A file that also uses "w:" for something else is refused.
+const MAIN_NS = /xmlns:([A-Za-z_][\w.-]*)\s*=\s*["'](?:http:\/\/schemas\.openxmlformats\.org\/wordprocessingml\/2006\/main|http:\/\/purl\.oclc\.org\/ooxml\/wordprocessingml\/main)["']/;
+export function wordXml(xml) {
+  const m = MAIN_NS.exec(xml);
+  if (!m || m[1] === 'w') return xml;
+  const p = m[1].replace(/[.]/g, '\\.');
+  if (new RegExp(`xmlns:w\\s*=`).test(xml)) throw new Error('the Word namespace is under "' + m[1] + ':" and "w:" means something else: not supported');
+  return xml.replace(/<[^>]*>/g, (tag) => tag
+    .replace(new RegExp(`^<(/?)${p}:`), '<$1w:')
+    .replace(new RegExp(`(\\s)${p}:`, 'g'), '$1w:')
+    .replace(new RegExp(`xmlns:${p}(\\s*=)`), 'xmlns:w$1'));
+}
+
 // <w:vanish/> in run properties: true, false (w:val="0") or null (not said).
 function vanish(props) {
   const v = props && kid(props, 'w:vanish');
-  return v ? !/w:val="(?:0|false|off)"/.test(v.attrs) : null;
+  if (!v) return null;
+  const val = attr(v, 'w:val');
+  return val === null || !/^(?:0|false|off)$/i.test(val.trim());
 }
 
 // Whether a style hides its text, following basedOn: {id: true|false} for the styles that say so.
+// Also the document's defaults: the default paragraph style (w:default="1"), which governs a
+// paragraph that names none, and the run defaults under w:docDefaults.
 function hiddenStyles(stylesXml) {
   const own = new Map();
+  let defaultParagraph = null;
+  let base = null;
   if (stylesXml) {
-    walk(parseXml(stylesXml), (el) => {
+    walk(parseXml(wordXml(stylesXml)), (el) => {
+      if (el.name === 'w:rPrDefault') { base = vanish(kid(el, 'w:rPr')); return false; }
       if (el.name !== 'w:style') return true;
       const based = kid(el, 'w:basedOn');
       own.set(attr(el, 'w:styleId'), { vanish: vanish(kid(el, 'w:rPr')), based: based ? attr(based, 'w:val') : null });
+      if (attr(el, 'w:type') === 'paragraph' && /^(?:1|true|on)$/i.test(attr(el, 'w:default') || '')) defaultParagraph = attr(el, 'w:styleId');
       return false;
     });
   }
@@ -105,19 +128,25 @@ function hiddenStyles(stylesXml) {
     if (!st || depth > 20) return null;
     return st.vanish !== null ? st.vanish : hidden(st.based, depth + 1);
   };
+  hidden.defaultParagraph = defaultParagraph;
+  hidden.base = base;
   return hidden;
 }
 
+const NO_STYLES = Object.assign(() => null, { defaultParagraph: null, base: null });
+
 // A run is hidden when its properties say <w:vanish/>, or else its character style,
 // or else its paragraph's style: Word's order.
-function hiddenRun(run, styles = () => null, paragraphStyle = null) {
+function hiddenRun(run, styles = NO_STYLES, paragraphStyle = null) {
   const props = kid(run, 'w:rPr');
   const direct = vanish(props);
   if (direct !== null) return direct;
   const rStyle = props && kid(props, 'w:rStyle');
   const byRun = rStyle ? styles(attr(rStyle, 'w:val')) : null;
   if (byRun !== null) return byRun;
-  return Boolean(paragraphStyle && styles(paragraphStyle));
+  const byParagraph = styles(paragraphStyle || styles.defaultParagraph);
+  if (byParagraph !== null) return byParagraph;
+  return Boolean(styles.base);
 }
 
 const paragraphStyleOf = (p) => {
@@ -168,6 +197,7 @@ function paragraphs(tree, styles) {
         continue;
       }
       if (k.name === 'w:instrText') { para.fields += textOf(k) + ' '; continue; }
+      if (k.name === 'w:fldSimple') para.fields += (attr(k, 'w:instr') || '') + ' ';      // and its result text below
       if (!state.deleted && !state.hidden) {
         if (k.name === 'w:tab') para.shown += '\t';
         else if (k.name === 'w:br' || k.name === 'w:cr') para.shown += ' ';
@@ -185,12 +215,50 @@ function readableTarget(target) {
   try { return decodeURIComponent(target); } catch { return target; }
 }
 
-// The target with the confirmed names replaced, encoded again where it was encoded.
+// The target as read, and for each character read, the stretch of the raw target it came from
+// ("%C3%BC" is one "ü"). An invalid escape is read as it stands.
+function decodeWithSpans(raw) {
+  let text = '';
+  const spans = [];
+  for (let i = 0; i < raw.length;) {
+    if (raw[i] === '%' && /^%[0-9A-Fa-f]{2}/.test(raw.slice(i))) {
+      const lead = parseInt(raw.slice(i + 1, i + 3), 16);
+      const n = lead < 0x80 ? 1 : lead >= 0xf0 ? 4 : lead >= 0xe0 ? 3 : lead >= 0xc0 ? 2 : 0;
+      const piece = raw.slice(i, i + 3 * n);
+      if (n && new RegExp(`^(?:%[0-9A-Fa-f]{2}){${n}}$`).test(piece)) {
+        try {
+          const ch = decodeURIComponent(piece);
+          for (let k = 0; k < ch.length; k++) spans.push([i, i + piece.length]);
+          text += ch;
+          i += piece.length;
+          continue;
+        } catch { /* an invalid sequence: read as it stands */ }
+      }
+    }
+    spans.push([i, i + 1]);
+    text += raw[i];
+    i++;
+  }
+  return { text, spans };
+}
+
+// The target with the confirmed names replaced where they stand, the rest of it byte for byte:
+// "%2F", "%26", "%3D" stay escaped, so the link still means what it meant.
 function replaceTarget(target, pats) {
-  const readable = readableTarget(target);
-  const replaced = replaceAll(readable, pats);
-  if (replaced === readable) return target;
-  return readable === target ? replaced : encodeURI(replaced);
+  const { text, spans } = decodeWithSpans(target);
+  const hits = [];
+  for (const pat of pats) for (const m of text.matchAll(pat.re)) hits.push([m.index, m.index + m[0].length, pat.placeholder]);
+  hits.sort((a, b) => a[0] - b[0] || b[1] - a[1]);
+  let out = '';
+  let at = 0;
+  let end = 0;
+  for (const [a, b, placeholder] of hits) {
+    if (a < end || a === b) continue;
+    out += target.slice(at, spans[a][0]) + encodeURIComponent(placeholder);
+    at = spans[b - 1][1];
+    end = b;
+  }
+  return out + target.slice(at);
 }
 
 const PROPERTIES = {
@@ -208,7 +276,7 @@ async function headerSections(buffer, zip) {
     if (el.name === 'Relationship') targets[attr(el, 'Id')] = resolve('word/_rels/document.xml.rels', attr(el, 'Target') || '');
   });
   let section = 0;
-  walk(parseXml(await readEntry(buffer, zip.get('word/document.xml'))), (el) => {
+  walk(parseXml(wordXml(await readEntry(buffer, zip.get('word/document.xml')))), (el) => {
     if (el.name !== 'w:sectPr') return true;
     for (const k of el.kids) {
       if (k.t !== 'el' || (k.name !== 'w:headerReference' && k.name !== 'w:footerReference')) continue;
@@ -234,7 +302,7 @@ export async function readFile(buffer, name = '') {
 
   for (const file of parts) {
     const kind = TEXT_PARTS[order(file)][1];
-    const tree = parseXml(await readEntry(buffer, zip.get(file)));
+    const tree = parseXml(wordXml(await readEntry(buffer, zip.get(file))));
     paragraphs(tree, styles).forEach((p, index) => {
       // In a note, `index` counts the note's own paragraphs, as Word's notes collection does.
       const where = p.note !== null && p.note !== undefined && kind !== 'comment'
@@ -273,7 +341,7 @@ export async function readFile(buffer, name = '') {
     });
   }
   if (zip.has('word/settings.xml')) {
-    const tree = parseXml(await readEntry(buffer, zip.get('word/settings.xml')));
+    const tree = parseXml(wordXml(await readEntry(buffer, zip.get('word/settings.xml'))));
     walk(tree, (el) => { if (el.name === 'w:docVar') add(besides, attr(el, 'w:val'), { part: 'property', name: attr(el, 'w:name') || 'variable', file: 'word/settings.xml' }); });
   }
   for (const [file, entry] of zip) {
@@ -359,8 +427,15 @@ function segments(p) {
 
 // Puts the placeholder at exactly the places the check showed, across formatting runs
 // ("Mül" + "ler"): the first text node of the place takes it, the rest of the place is cut.
-function replacePlaces(p, places) {
+// A place is replaced only where the paragraph still reads, there, what the check showed.
+function replacePlaces(p, places, ledger) {
+  const shown = segments(p).map((seg) => seg.text).join('');
   for (const place of [...places].sort((a, b) => b.start - a.start)) {
+    if (place.text !== undefined && shown.slice(place.start, place.end) !== place.text) {
+      if (ledger) ledger.skipped.push(place);
+      continue;
+    }
+    if (ledger) ledger.replaced++;
     let put = false;
     for (const seg of segments(p)) {
       const s = Math.max(place.start, seg.start);
@@ -382,18 +457,25 @@ function replacePlaces(p, places) {
   }
 }
 
-function anonymizePart(xml, pats, places, styles) {
-  const tree = parseXml(xml);
-  clean(tree, styles);
-  let seq = 0;
+function anonymizePart(xml, pats, places, styles, ledger) {
+  const tree = parseXml(wordXml(xml));
+  // Paragraphs are numbered as the reader numbered them, before cleaning removes any (a hidden
+  // text box inside a paragraph): a place stays with its own paragraph, never the next one.
+  const bySeq = [];
   walk(tree, (el) => {
     // Separator notes are not paragraphs of the text; the reader skips them too.
     if ((el.name === 'w:footnote' || el.name === 'w:endnote') && NOTE_TYPES.test(el.attrs)) return false;
-    if (el.name === 'w:p') {
-      const here = places.get(seq++);
-      if (here) replacePlaces(el, here);
-    }
+    if (el.name === 'w:p') bySeq.push(el);
+    return true;
+  });
+  clean(tree, styles);
+  for (const [seq, here] of places) {
+    if (bySeq[seq]) replacePlaces(bySeq[seq], here, ledger);
+    else if (ledger) ledger.skipped.push(...here);
+  }
+  walk(tree, (el) => {
     if (el.name === 'w:instrText') setText(el, replaceAll(textOf(el), pats));
+    if (el.name === 'w:fldSimple' && attr(el, 'w:instr') !== null) setAttr(el, 'w:instr', replaceAll(attr(el, 'w:instr'), pats));
     if (el.name === 'wp:docPr' || el.name === 'pic:cNvPr') { setAttr(el, 'descr', ''); setAttr(el, 'title', ''); }
     return true;
   });
@@ -409,10 +491,12 @@ function resolve(from, target) {
   return target.startsWith('/') ? target.slice(1) : parts.join('/');
 }
 
-// replacements: [{placeholder: 'A.________', places: [{file, seq, start, end}], forms: ['Hans', 'Müller']}]
+// replacements: [{placeholder: 'A.________', places: [{file, seq, start, end, text}], forms: ['Hans', 'Müller']}]
+// `ledger` ({replaced: 0, skipped: []}), when given, counts the places replaced and lists those
+// whose paragraph no longer read `text` there (left untouched).
 // `places` are where the check showed the person (file, paragraph sequence, offsets in its text);
 // `forms` serve field codes and link targets, which have no place in a paragraph.
-export async function anonymizedCopy(buffer, replacements) {
+export async function anonymizedCopy(buffer, replacements, ledger = null) {
   const zip = entries(buffer);
   const pats = patterns(replacements);
   const places = new Map();                           // file -> seq -> [{start, end, placeholder}]
@@ -421,7 +505,7 @@ export async function anonymizedCopy(buffer, replacements) {
       if (!places.has(pl.file)) places.set(pl.file, new Map());
       const bySeq = places.get(pl.file);
       if (!bySeq.has(pl.seq)) bySeq.set(pl.seq, []);
-      bySeq.get(pl.seq).push({ start: pl.start, end: pl.end, placeholder: r.placeholder });
+      bySeq.get(pl.seq).push({ start: pl.start, end: pl.end, text: pl.text, placeholder: r.placeholder });
     }
   }
   const removed = new Set([...zip.keys()].filter((n) => REMOVE_PARTS.test(n)));
@@ -431,7 +515,7 @@ export async function anonymizedCopy(buffer, replacements) {
   for (const [file, entry] of zip) {
     if (removed.has(file)) continue;
     if (TEXT_PARTS.some(([re, kind]) => kind !== 'comment' && re.test(file)) || file === 'word/settings.xml') {
-      changed.set(file, anonymizePart(await readEntry(buffer, entry), pats, places.get(file) || new Map(), styles));
+      changed.set(file, anonymizePart(await readEntry(buffer, entry), pats, places.get(file) || new Map(), styles, ledger));
     } else if (PROPERTIES[file]) {
       const tree = parseXml(await readEntry(buffer, entry));
       walk(tree, (el) => { if (BLANK_PROPERTIES.has(el.name)) { el.kids = []; } return true; });
@@ -522,4 +606,46 @@ async function writeZip(buffer, zip, removed, changed) {
   let at = 0;
   for (const c of all) { out.set(c, at); at += c.length; }
   return out.buffer;
+}
+
+// The copy against what it must be, independently of the check: every visible paragraph of the
+// original, with exactly the ticked places replaced and nothing else changed. Paragraphs that are
+// empty in either (a hidden text box, cleaned away) are left out. Returns the paragraphs that differ.
+const VISIBLE_KINDS = new Set(['body', 'footnote', 'endnote', 'header', 'footer']);
+export function verifyCopy(original, copy, replacements) {
+  const at = new Map();                                   // file|seq -> [{start, end, placeholder}]
+  for (const r of replacements) {
+    for (const pl of r.places || []) {
+      const key = pl.file + '|' + pl.seq;
+      if (!at.has(key)) at.set(key, []);
+      at.get(key).push({ ...pl, placeholder: r.placeholder });
+    }
+  }
+  const byFile = (parts, expected) => {
+    const files = new Map();
+    for (const p of parts) {
+      if (!VISIBLE_KINDS.has(p.where.part)) continue;
+      let text = p.text;
+      if (expected) {
+        for (const pl of (at.get(p.where.file + '|' + p.where.seq) || []).sort((a, b) => b.start - a.start)) {
+          text = text.slice(0, pl.start) + pl.placeholder + text.slice(pl.end);
+        }
+      }
+      if (!text.trim()) continue;
+      if (!files.has(p.where.file)) files.set(p.where.file, []);
+      files.get(p.where.file).push(text);
+    }
+    return files;
+  };
+  const want = byFile(original.parts, true);
+  const got = byFile(copy.parts, false);
+  const differ = [];
+  for (const file of new Set([...want.keys(), ...got.keys()])) {
+    const a = want.get(file) || [];
+    const b = got.get(file) || [];
+    for (let i = 0; i < Math.max(a.length, b.length); i++) {
+      if (a[i] !== b[i]) differ.push({ file, index: i, expected: a[i], actual: b[i] });
+    }
+  }
+  return differ;
 }
