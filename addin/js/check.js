@@ -189,12 +189,21 @@ function occurrencesBefore(text, needle, position) {
   return n;
 }
 
-// Runs of spaces as one ("BGE 140  III 115"), with a map back to the paragraph as written.
+// Runs of spaces as one ("BGE 140  III 115"), and none around the slash of a docket number
+// ("4A_747 / 2012"), with a map back to the paragraph as written.
+const SPACED_SLASH = /(?:\d[A-Z]{1,2}[ _.]|[A-Z]{1,2}-)\d{1,5}([ \t\u00a0\u202f]*)\/([ \t\u00a0\u202f]*)\d{4}(?!\d)/g;
 function collapse(text) {
-  if (!/[ \t\u00a0\u202f]{2}/.test(text)) return { text, at: null };
+  const drop = new Set();
+  for (const m of text.matchAll(SPACED_SLASH)) {
+    const slash = m.index + m[0].length - 4 - m[2].length - 1;          // the year is the last four digits
+    for (let k = 1; k <= m[1].length; k++) drop.add(slash - k);
+    for (let k = 1; k <= m[2].length; k++) drop.add(slash + k);
+  }
+  if (!drop.size && !/[ \t\u00a0\u202f]{2}/.test(text)) return { text, at: null };
   let out = '';
   const at = [];
   for (let i = 0; i < text.length; i++) {
+    if (drop.has(i)) continue;
     if (/[ \t\u00a0\u202f]/.test(text[i]) && i > 0 && /[ \t\u00a0\u202f]/.test(text[i - 1])) continue;
     at.push(i);
     out += text[i];

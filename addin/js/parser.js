@@ -113,7 +113,7 @@ const MARK = String.raw`(?:[Ee]\.|[Ee]rw\.|[Ee]rwägung|[Ee]rwaegung|[Cc]onsid\.
 const PINPOINT_INLINE = new RegExp(String.raw`(?:(?<=[\s,;(])|^)` + MARK + String.raw`\s*(\d+(?:\.\d+)*(?:[a-z]{1,2})?(?:\/[a-z]{1,2})*)(?:\s*(?:ff?\.|ss?\.))?`);
 const PAGE_REF = /(?:(?<=[\s,;(])|^)(?:S\.|SS\.|p\.|pp\.|pag\.|pagg\.)\s*(\d{1,5})(?:\s*(?:ff?\.|ss?\.))?/g;
 const DATE_WORD = /(?<![\d\/.])(\d{1,2})(?:\.|er|re|º|°)?\s+([A-Za-zÀ-ÿ]+)\s+(\d{4})(?![\d\/])/g;
-const DATE_NUM = /(?<![\d\/.])(\d{1,2})\.(\d{1,2})\.(\d{4})(?![\d\/])/g;
+const DATE_NUM = /(?<![\d\/.])(\d{1,2})\.[ \u00a0\u202f]?(\d{1,2})\.[ \u00a0\u202f]?(\d{4})(?![\d\/])/g;     // also "6. 4. 2013"
 const BGE = /(?<![A-Za-z0-9])(BGE|ATF|DTF)\s*(\d{1,3})\s+(Ia|Ib|III|II|IV|I|V)\s+(\d{1,4})(?![0-9])/;
 const FEDERAL = /(?<![A-Za-z0-9])(\d[A-Z]{1,2})[ _.](\d{1,5})\/(\d{4})(?![0-9])/g;
 const DOCKET_SHAPES = [

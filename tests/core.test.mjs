@@ -186,3 +186,13 @@ test('deep check C-series: qualifiers in any order and capitals, narrow spaces, 
   assert.equal(only('BGE 140 III 115 E. 2.3 S. 118').status, 'found');                 // a control: all of it right
   assert.equal(only('BGE 140 III 115. Die Sache ist erledigt.').text, 'BGE 140 III 115');   // a sentence after it is no qualifier
 });
+
+test('deep check C13-C15: a docket with spaces around its slash, a spaced numeric date, a sentence after', () => {
+  const c13 = only('BGer 4A_747 / 2012 E. 99');
+  assert.deepEqual([c13.text, c13.status, c13.parsed.pinpoint], ['BGer 4A_747 / 2012 E. 99', 'differs', '99']);
+  const c14 = only('BGer 4A_747/2012 vom 6. 4. 2013 E. 3');
+  assert.deepEqual([c14.status, c14.parsed.date, c14.issues.map((i) => i.kind)], ['differs', '2013-04-06', ['date']]);
+  const c15 = only('BGer 4A_747/2012 E. 3. Die Sitzung vom 6. April 2013.');
+  assert.deepEqual([c15.text, c15.status, c15.parsed.date], ['BGer 4A_747/2012 E. 3', 'found', null]);
+  assert.equal(check('Seite 1 / 2014 und 3 / 4.').findings.length, 0);
+});
