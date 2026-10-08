@@ -665,13 +665,20 @@ function people(t, words, has) {
       places.push(where);
       texts.push(where.text);
     }
-    // the fullest form, the most frequent among those, the first among those
-    const score = (x) => [x.split(/\s+/).filter(Boolean).length, texts.filter((y) => y === x).length, -texts.indexOf(x)];
+    // the fullest form, the most frequent among those, the first among those (each form counted once)
+    const forms = new Map();
+    texts.forEach((x, i) => {
+      const f = forms.get(x);
+      if (f) f.count++;
+      else forms.set(x, { words: x.split(/\s+/).filter(Boolean).length, count: 1, first: i });
+    });
     let name = texts[0];
-    for (const x of texts) {
-      const a = score(x);
-      const b = score(name);
-      if (a[0] > b[0] || (a[0] === b[0] && (a[1] > b[1] || (a[1] === b[1] && a[2] > b[2])))) name = x;
+    let best = forms.get(name);
+    for (const [x, f] of forms) {
+      if (f.words > best.words || (f.words === best.words && (f.count > best.count || (f.count === best.count && f.first < best.first)))) {
+        name = x;
+        best = f;
+      }
     }
     return { name, mentions: places };
   };

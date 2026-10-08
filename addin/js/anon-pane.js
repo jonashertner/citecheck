@@ -180,18 +180,27 @@ async function fileBytes() {
   return state.file && state.file.buffer;
 }
 
+export const timings = () => state.timings;
+
 export async function runCheck() {
   say('');
   state.busy = 'check';
   render();
+  const t0 = performance.now();
+  let t1;
   try {
-    if (!(await ensureVocabulary())) return;
-    let buffer;
-    try { buffer = await fileBytes(); } catch (error) { say(t('a_err_file', { message: (error && error.message) || String(error) })); return; }
+    // The word list and the file: two independent waits, run together.
+    const since = (p) => p.then((value) => ({ value, ms: performance.now() - t0 }), (error) => ({ error }));
+    const [words, file] = await Promise.all([since(ensureVocabulary()), since(fileBytes())]);
+    if (!words.value) return;
+    if (file.error) { say(t('a_err_file', { message: (file.error && file.error.message) || String(file.error) })); return; }
+    const buffer = file.value;
     if (!buffer) return;
     state.checked = buffer;
+    t1 = performance.now();
     state.read = await readFile(buffer, state.host === 'word' ? word.fileName() : state.file.name);
     state.result = check(state.read.parts, state.vocabulary);
+    state.timings = { words: words.ms, read: file.ms, check: performance.now() - t1 };
     const before = state.decide;
     state.rows = buildRows(state.result, state.read.parts);
     state.decide = new Map(state.rows.filter((r) => before.has(r.key)).map((r) => [r.key, before.get(r.key)]));
@@ -207,7 +216,9 @@ export async function runCheck() {
     say(t('err_generic', { message: (error && error.message) || String(error) }));
   } finally {
     state.busy = false;
+    const t2 = performance.now();
     render();
+    if (state.timings && t1) state.timings.render = performance.now() - t2;
   }
 }
 

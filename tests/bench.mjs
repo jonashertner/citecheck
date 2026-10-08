@@ -21,9 +21,12 @@ const lines = [...keys.entries()].sort((a, b) => Buffer.compare(Buffer.from(a[0]
 const bytes = enc.encode('#ocl-cite-index 1\n' + lines.join('\n') + '\n');
 console.log(`labels ${lines.length.toLocaleString()}  unpacked ${(bytes.length / 1e6).toFixed(1)} MB  gzip ${(gzipSync(bytes, { level: 9 }).length / 1e6).toFixed(1)} MB`);
 
-const index = new CiteIndex(bytes);
-const sample = [...keys.keys()].filter((_, i) => i % 1100 === 0);
 let t0 = performance.now();
+const index = new CiteIndex(bytes);
+index.has('0');
+console.log(`open: ${(performance.now() - t0).toFixed(0)} ms`);
+const sample = [...keys.keys()].filter((_, i) => i % 1100 === 0);
+t0 = performance.now();
 for (const k of sample) if (!index.has(k)) throw new Error('lost ' + k);
 console.log(`exact lookup: ${((performance.now() - t0) / sample.length * 1000).toFixed(1)} µs each (${sample.length} keys, all found)`);
 

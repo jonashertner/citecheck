@@ -305,6 +305,13 @@ function renderAbout() {
   $('about-sha-label').textContent = t('about_sha');
   $('about-list').textContent = state.manifest ? state.manifest.file + ' (' + formatNumber(state.manifest.bytes) + ' B)' : '';
   $('about-sha').textContent = state.manifest ? state.manifest.sha256 : '';
+  // What the last check took, stage by stage, on this computer: measured, not promised.
+  const ms = (x) => (x === undefined ? '–' : formatNumber(Math.round(x)));
+  const tm = state.mode === 'anon' ? anon.timings() : state.timings;
+  $('about-timings-label').textContent = t('about_timings');
+  $('about-timings').textContent = tm
+    ? t(state.mode === 'anon' ? 'timings_anon' : 'timings_cites', Object.fromEntries(['read', 'list', 'words', 'check', 'render'].map((k) => [k, ms(tm[k])])))
+    : '–';
   $('about-source').textContent = t('about_source');
   $('about-close').textContent = t('close');
 }
@@ -366,6 +373,13 @@ async function loadList(refresh) {
 }
 
 async function runCheck() {
+  // The draft is read while the list is asked about: two independent waits, run together.
+  const t0 = performance.now();
+  const reading = (async () => (state.host === 'word'
+    ? word.readDocument()
+    : state.file ? state.file.paragraphs
+      : $('paste-text').value.split(/\n+/).map((text, index) => ({ text, where: { part: 'body', index } }))))()
+    .then((paragraphs) => ({ paragraphs, ms: performance.now() - t0 }), (error) => ({ error }));
   // Every check first asks whether a newer list exists (a few KB); the list itself
   // is downloaded only when it changed. Unreachable: check with the list at hand.
   // Asked in the last ten minutes: the answer stands.
@@ -379,28 +393,29 @@ async function runCheck() {
       if (state.index) state.listNote = { key: 'list_stale' };
     }
   }
+  const listMs = performance.now() - t0;
   if (!state.index) return;
   state.busy = 'check';
   alertUser('');
   renderChrome();
+  let t1;
   try {
-    let paragraphs;
-    try {
-      paragraphs = state.host === 'word'
-        ? await word.readDocument()
-        : state.file ? state.file.paragraphs
-          : $('paste-text').value.split(/\n+/).map((text, index) => ({ text, where: { part: 'body', index } }));
-    } catch (error) {
-      alertUser(errorText(error, 'err_read'));
+    const read = await reading;
+    if (read.error) {
+      alertUser(errorText(read.error, 'err_read'));
       return;
     }
-    state.result = checkDocument(paragraphs, state.index);
+    t1 = performance.now();
+    state.result = checkDocument(read.paragraphs, state.index);
+    state.timings = { read: read.ms, list: listMs, check: performance.now() - t1 };
     state.filter = state.result.counts.differs + state.result.counts.missing ? state.filter : 'all';
     if (state.filter !== 'all' && !state.result.counts[state.filter]) state.filter = 'all';
     state.open = null;
   } finally {
     state.busy = false;
+    const t2 = performance.now();
     render();
+    if (state.timings && t1) state.timings.render = performance.now() - t2;
   }
 }
 
@@ -457,7 +472,7 @@ async function start() {
   for (const type of ['dragenter', 'dragover']) drop.addEventListener(type, (e) => { e.preventDefault(); drop.classList.add('over'); });
   for (const type of ['dragleave', 'drop']) drop.addEventListener(type, (e) => { e.preventDefault(); drop.classList.remove('over'); });
   drop.addEventListener('drop', (e) => takeFile(e.dataTransfer && e.dataTransfer.files[0]));
-  $('about-open').addEventListener('click', () => $('about').showModal());
+  $('about-open').addEventListener('click', () => { renderAbout(); $('about').showModal(); });
   $('about-close').addEventListener('click', () => $('about').close());
   render();
   if (state.mode === 'cites') await loadList(true);
