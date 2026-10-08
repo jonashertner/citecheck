@@ -59,8 +59,11 @@ or number is explained when it is
   name (the word list, below), or a number of a common shape (date, amount,
   legal reference, docket, section, count);
 - **made public by the ruling itself**: the bench, counsel and officials named
-  with their office, authors and case names inside citations. A category the
-  ruling anonymizes itself (counsel written as B.________) is not explained;
+  with their office, authors and case names inside citations. Public is the
+  person, not the surname: "Anna Müller" next to "Bundesrichter Hans Müller",
+  or a party word before a name ("Die Klägerin Hans Müller"), is someone else
+  and is shown, and then so is every bare "Müller". A category the ruling
+  anonymizes itself (counsel written as B.________) is not explained;
 - **a placeholder**: A.________, [...], X.
 
 Everything else is shown, grouped by person, not by word: "Hans Müller",
@@ -83,7 +86,10 @@ Text is compared in composed form, so a name typed with a combining umlaut
 (`u` + U+0308) is the same name.
 
 The clerk ticks what to replace; a person gets one letter wherever and however
-the name is written (letters already used by the document are skipped).
+the name is written (letters already used by the document are skipped; after
+Z come AA, AB …, never a letter in use). A tick changes nothing in the open
+document; the open row shows the result in its sentence ("~~Hans Müller~~
+A.________"), and the arrow keys step through the places in Word.
 **"Create anonymised copy"** writes a new `.docx`:
 
 - every ticked place replaced as the name is written, with its initial and both
@@ -93,6 +99,10 @@ the name is written (letters already used by the document are skipped).
   style hides it), document properties, content-control names and tags, the
   page thumbnail, custom XML, document variables and the template path
   removed; ticked names and identifiers replaced in link targets too;
+- each place is replaced only where its paragraph still reads what the check
+  showed; then the copy is compared with the original paragraph by paragraph,
+  independently of the check: exactly the ticked places replaced, nothing else
+  changed, or the copy is not handed out;
 - the copy is read back and checked like any document, including for an initial
   or a name left next to a placeholder ("H. A.________"); only then is it opened
   as a new Word document (or offered as a download). The result says what was
@@ -101,7 +111,9 @@ the name is written (letters already used by the document are skipped).
 Word writes the editor's name into the properties of a file it saves: the saved
 copy is worth one more check before it is published.
 
-The open document is never changed.
+The copy is written from the document as it is when the copy is made (a bold
+set after the check is kept); if any part reads differently from the check, the
+pane asks for a new check first. The open document is never changed.
 
 What it does not do, and says so in the pane:
 
