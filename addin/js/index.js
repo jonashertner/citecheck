@@ -8,6 +8,8 @@
 // million objects. Several decisions may share a key (the same file number at
 // two courts); their lines are adjacent.
 
+import { Vocabulary } from './vocabulary.js';
+
 const NL = 10;
 const TAB = 9;
 const encoder = new TextEncoder();
@@ -113,12 +115,13 @@ function idb(mode, run) {
   });
 }
 
-async function cached() {
-  try { return (await idb('readonly', (s) => s.get('current'))) || null; } catch { return null; }
+// Two entries: 'current' holds the cite list, 'vocabulary' the word list of the anonymization check.
+async function cached(key = 'current') {
+  try { return (await idb('readonly', (s) => s.get(key))) || null; } catch { return null; }
 }
 
-async function store(entry) {
-  try { await idb('readwrite', (s) => s.put(entry, 'current')); return true; } catch { return false; }
+async function store(entry, key = 'current') {
+  try { await idb('readwrite', (s) => s.put(entry, key)); return true; } catch { return false; }
 }
 
 export async function forget() {
@@ -136,12 +139,15 @@ async function gunzip(buffer) {
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
-export async function fetchManifest(base) {
-  const response = await fetch(base + 'index.json', { cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer' });
-  if (!response.ok) throw new Error('index.json: HTTP ' + response.status);
+// The manifest beside a list: 'index.json' (cite list) or 'vocabulary.json' (word list).
+const MANIFESTS = new Set(['index.json', 'vocabulary.json']);
+export async function fetchManifest(base, name = 'index.json') {
+  if (!MANIFESTS.has(name)) throw new Error('unknown manifest ' + name);
+  const response = await fetch(base + name, { cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer' });
+  if (!response.ok) throw new Error(name + ': HTTP ' + response.status);
   const manifest = await response.json();
   if (manifest.schema !== 1 || !/^[0-9a-f]{64}$/.test(manifest.sha256 || '') || !/^[A-Za-z0-9._-]+$/.test(manifest.file || '')) {
-    throw Object.assign(new Error('index.json is not a schema 1 manifest'), { code: 'manifest' });
+    throw Object.assign(new Error(name + ' is not a schema 1 manifest'), { code: 'manifest' });
   }
   return manifest;
 }
@@ -186,4 +192,24 @@ export async function openIndex({ base, refresh = true, onProgress } = {}) {
   const index = new CiteIndex(await gunzip(gz));
   const persisted = await store({ manifest, gz, stored: new Date().toISOString() });
   return { index, manifest, source: 'download', stale: false, persisted };
+}
+
+// Opens the word list of the anonymization check, from the add-in's own data/
+// folder: the same manifest, checksum and cache as the cite list. It is a public
+// file, the same for everyone; nothing about the document is sent to get it.
+export async function openVocabulary({ base, refresh = true } = {}) {
+  const have = await cached('vocabulary');
+  let manifest = null;
+  let offline = null;
+  if (refresh || !have) {
+    try { manifest = await fetchManifest(base, 'vocabulary.json'); } catch (e) { offline = e; }
+  }
+  if (have && (!manifest || manifest.sha256 === have.manifest.sha256)) {
+    return { vocabulary: new Vocabulary(await gunzip(have.gz)), manifest: have.manifest, stale: Boolean(offline) };
+  }
+  if (!manifest) throw Object.assign(new Error('the word list cannot be reached'), { code: 'offline', cause: offline });
+  const gz = await download(base, manifest);
+  const vocabulary = new Vocabulary(await gunzip(gz));
+  await store({ manifest, gz, stored: new Date().toISOString() }, 'vocabulary');
+  return { vocabulary, manifest, stale: false };
 }

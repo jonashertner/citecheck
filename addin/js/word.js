@@ -83,3 +83,60 @@ export async function comment(finding, text) {
     return true;
   });
 }
+
+// ── the anonymization check ───────────────────────────────────────────────
+// The whole file as Word holds it, through the common file API that every Word
+// since 2016 offers (unlike reading comments or tracked changes one by one).
+export function readFile() {
+  return new Promise((resolve, reject) => {
+    Office.context.document.getFileAsync(Office.FileType.Compressed, { sliceSize: 4194304 }, (result) => {
+      if (result.status !== Office.AsyncResultStatus.Succeeded) { reject(result.error); return; }
+      const file = result.value;
+      const slices = [];
+      const next = (i) => file.getSliceAsync(i, (slice) => {
+        if (slice.status !== Office.AsyncResultStatus.Succeeded) { file.closeAsync(); reject(slice.error); return; }
+        slices.push(new Uint8Array(slice.value.data));
+        if (i + 1 < file.sliceCount) { next(i + 1); return; }
+        file.closeAsync();
+        const out = new Uint8Array(slices.reduce((n, s) => n + s.length, 0));
+        let at = 0;
+        for (const s of slices) { out.set(s, at); at += s.length; }
+        resolve(out.buffer);
+      });
+      next(0);
+    });
+  });
+}
+
+// The nth occurrence of a word in the body, or in the first section's header or footer.
+export async function showText(text, nth, part) {
+  return Word.run(async (context) => {
+    let scope = context.document.body;
+    if (part === 'header' || part === 'footer') {
+      const section = context.document.sections.getFirst();
+      scope = part === 'header' ? section.getHeader('Primary') : section.getFooter('Primary');
+    }
+    const hits = scope.search(text.slice(0, 255), { matchCase: true, matchWholeWord: !/\s/.test(text) });
+    hits.load('items');
+    await context.sync();
+    const range = hits.items[Math.min(nth, hits.items.length - 1)];
+    if (!range) return false;
+    range.select();
+    await context.sync();
+    return true;
+  });
+}
+
+export const canOpenCopy = () => inWord() && supports('1.3');
+
+// Opens the anonymized copy as a new, unsaved document; the open one is not touched.
+export async function openCopy(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return Word.run(async (context) => {
+    context.application.createDocument(btoa(binary)).open();
+    await context.sync();
+    return true;
+  });
+}

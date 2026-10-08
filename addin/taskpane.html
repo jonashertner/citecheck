@@ -23,9 +23,14 @@
   <div class="pane">
     <header class="head">
       <div class="head-row">
-        <h1 id="title">Zitatprüfung</h1>
+        <h1 class="sr-only" id="title">Zitatprüfung</h1>
+        <div class="modes" id="modes" role="tablist">
+          <button type="button" class="mode-tab" id="mode-cites" role="tab" aria-controls="cite-mode">Zitate</button>
+          <button type="button" class="mode-tab" id="mode-anon" role="tab" aria-controls="anon-mode">Anonymisierung</button>
+        </div>
         <div class="langs" id="langs" role="group" aria-label="Sprache"></div>
       </div>
+      <div id="cite-head">
       <p class="list-line" id="list-line" aria-live="polite"></p>
       <p class="list-note" id="list-note" hidden></p>
       <div class="progress" id="progress" hidden>
@@ -36,7 +41,17 @@
         <button type="button" class="primary" id="check" disabled>Entwurf prüfen</button>
         <button type="button" class="quiet" id="update" disabled>Liste aktualisieren</button>
       </div>
+      </div>
+      <div id="anon-head" hidden>
+        <p class="purpose" id="a-purpose"></p>
+        <p class="preview"><span id="a-preview"></span> <a id="a-feedback" href="https://github.com/jonashertner/citecheck/issues" target="_blank" rel="noopener noreferrer"></a></p>
+        <div class="actions">
+          <button type="button" class="primary" id="a-check" disabled></button>
+        </div>
+      </div>
     </header>
+
+    <div class="mode" id="cite-mode" role="tabpanel" aria-labelledby="mode-cites">
 
     <section class="paste" id="paste" hidden>
       <div class="drop" id="drop">
@@ -65,6 +80,44 @@
       <h2 id="empty-title"></h2>
       <p id="empty-body"></p>
     </section>
+    </div>
+
+    <div class="mode" id="anon-mode" role="tabpanel" aria-labelledby="mode-anon" hidden>
+      <section class="paste" id="a-file" hidden>
+        <div class="drop" id="a-drop">
+          <button type="button" class="quiet" id="a-pick"></button>
+          <input type="file" id="a-input" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
+          <p id="a-file-line"></p>
+        </div>
+      </section>
+      <p class="alert" id="a-alert" role="alert" hidden></p>
+      <section class="summary" id="a-summary" hidden>
+        <p class="verdict" id="a-verdict" aria-live="polite"></p>
+        <p class="explained"><span id="a-explained"></span> <button type="button" class="link" id="a-why-open" aria-expanded="false" aria-controls="a-why"></button></p>
+        <dl class="why" id="a-why" hidden></dl>
+      </section>
+      <main class="results a-results" id="a-results" hidden>
+        <div class="margin" id="a-margin" aria-hidden="true"></div>
+        <div class="a-lists">
+          <div class="a-group" id="a-text"></div>
+          <div class="a-group" id="a-file-group"></div>
+          <p class="limit" id="a-limit"></p>
+        </div>
+      </main>
+      <section class="empty" id="a-empty">
+        <h2 id="a-empty-title"></h2>
+        <p id="a-empty-body"></p>
+      </section>
+      <section class="copybar" id="a-copybar" hidden>
+        <div class="copy-row">
+          <label for="a-style" id="a-style-label"></label>
+          <select id="a-style"></select>
+        </div>
+        <button type="button" class="primary" id="a-copy"></button>
+        <p class="copy-note" id="a-copy-note"></p>
+        <p class="copy-result" id="a-copy-result" role="status" hidden></p>
+      </section>
+    </div>
 
     <footer class="foot">
       <p><span id="privacy"></span> <button type="button" class="link" id="about-open"></button></p>

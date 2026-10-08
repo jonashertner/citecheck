@@ -8,8 +8,8 @@ const decoder = new TextDecoder();
 function u16(view, at) { return view.getUint16(at, true); }
 function u32(view, at) { return view.getUint32(at, true); }
 
-// name -> {method, offset, compressedSize} from the zip's central directory.
-function entries(buffer) {
+// name -> {method, offset, compressedSize, size, crc} from the zip's central directory.
+export function entries(buffer) {
   const view = new DataView(buffer);
   let end = -1;
   for (let at = buffer.byteLength - 22; at >= Math.max(0, buffer.byteLength - 66000); at--) {
@@ -22,17 +22,22 @@ function entries(buffer) {
     if (u32(view, at) !== 0x02014b50) throw new Error('damaged zip directory');
     const nameLength = u16(view, at + 28);
     const name = decoder.decode(new Uint8Array(buffer, at + 46, nameLength));
-    out.set(name, { method: u16(view, at + 10), compressedSize: u32(view, at + 20), offset: u32(view, at + 42) });
+    out.set(name, { method: u16(view, at + 10), crc: u32(view, at + 16), compressedSize: u32(view, at + 20), size: u32(view, at + 24), offset: u32(view, at + 42) });
     at += 46 + nameLength + u16(view, at + 30) + u16(view, at + 32);
   }
   return out;
 }
 
-async function readEntry(buffer, entry) {
+// The stored (still compressed) bytes of an entry.
+export function rawEntry(buffer, entry) {
   const view = new DataView(buffer);
   if (u32(view, entry.offset) !== 0x04034b50) throw new Error('damaged zip entry');
   const start = entry.offset + 30 + u16(view, entry.offset + 26) + u16(view, entry.offset + 28);
-  const data = new Uint8Array(buffer, start, entry.compressedSize);
+  return new Uint8Array(buffer, start, entry.compressedSize);
+}
+
+export async function readEntry(buffer, entry) {
+  const data = rawEntry(buffer, entry);
   if (entry.method === 0) return decoder.decode(data);
   if (entry.method !== 8) throw new Error('unsupported zip compression');
   const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));

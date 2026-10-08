@@ -1,0 +1,280 @@
+[
+ {
+  "name": "German ruling, anonymized, with every kind of leak",
+  "parts": [
+   {
+    "text": "Urteil vom 5. März 2024",
+    "where": {
+     "part": "body",
+     "index": 0
+    }
+   },
+   {
+    "text": "Besetzung Bundesrichter Seiler, Präsident, Bundesrichterin Aubry Girardin, Gerichtsschreiber Feller.",
+    "where": {
+     "part": "body",
+     "index": 1
+    }
+   },
+   {
+    "text": "Parteien A.________, Bahnhofstrasse 12, 8001 Zürich, vertreten durch Rechtsanwalt Dr. Peter Kunz, Beschwerdeführer,",
+    "where": {
+     "part": "body",
+     "index": 2
+    }
+   },
+   {
+    "text": "gegen CSS Versicherung AG, Tribschenstrasse 21, 6005 Luzern, Beschwerdegegnerin.",
+    "where": {
+     "part": "body",
+     "index": 3
+    }
+   },
+   {
+    "text": "Die Ehefrau B.________ und der Sohn C.________ wohnen im Haus. Hans Müller sagte, Müllers Natel 079 123 45 67 sei bekannt; MÜLLER bestritt dies.",
+    "where": {
+     "part": "body",
+     "index": 4
+    }
+   },
+   {
+    "text": "Die AHV-Nummer 756.1234.5678.97 und AHV-Nr. 260.68.476.118 stehen in den Akten; Konto CH93 0076 2011 6238 5295 7 lautet auf A.________.",
+    "where": {
+     "part": "body",
+     "index": 5
+    }
+   },
+   {
+    "text": "Die Staatskasse hat das Konto CH93 0076 2011 6238 5295 7 bei der Bank angegeben.",
+    "where": {
+     "part": "body",
+     "index": 6
+    }
+   },
+   {
+    "text": "Der Personenwagen mit dem Kontrollschild ZH 123456 stand auf Parzelle Nr. 1234; A.________, geboren am 12. März 1980, Versicherten-Nr. 756.9999.8888.77.",
+    "where": {
+     "part": "body",
+     "index": 7
+    }
+   },
+   {
+    "text": "Siehe BGE 140 III 115 E. 2.3 S. 118; Urteil 4A_747/2012 vom 5. April 2013; Art. 8 Abs. 2 ZGB; Fr. 12'345.50; Ziff. 3.2.1; Urk. 12/11/63-64.",
+    "where": {
+     "part": "body",
+     "index": 8
+    }
+   },
+   {
+    "text": "Die Schneelast auf dem Hofplan und Hofmann; vgl. Schmid, in: Basler Kommentar, N. 12; Doorson c. Pays-Bas.",
+    "where": {
+     "part": "body",
+     "index": 9
+    }
+   },
+   {
+    "text": "Ihre Mail an hans.mueller@gmail.com, an info@zh.ch und an A____@bluewin.ch; Profil unter facebook.com/hans.mueller.77 und www.bger.ch.",
+    "where": {
+     "part": "body",
+     "index": 10
+    }
+   },
+   {
+    "text": "Polizeiposten Zürich, Tel. 044 411 71 17. Das Geschäft 7123456 und Nr. 98765432.",
+    "where": {
+     "part": "body",
+     "index": 11
+    }
+   },
+   {
+    "text": "Weber: hier Müller ersetzen",
+    "where": {
+     "part": "comment",
+     "index": 0
+    }
+   },
+   {
+    "text": "Hans Müller",
+    "where": {
+     "part": "deleted",
+     "index": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "French ruling with counsel and judges",
+  "parts": [
+   {
+    "text": "Composition Président : Daniel Logos Juges : Sylviane Liniger Odiet et Charles Freléchoux Greffière : Lisiane Poupon",
+    "where": {
+     "part": "body",
+     "index": 0
+    }
+   },
+   {
+    "text": "en la cause liée entre A.________, domicilié rue du Lac 5, 1003 Lausanne, représenté par Me Jean Dupont, avocat à Genève, recourant,",
+    "where": {
+     "part": "body",
+     "index": 1
+    }
+   },
+   {
+    "text": "et Office de l'assurance-invalidité du canton de Genève, rue des Gares 12, 1201 Genève, intimé.",
+    "where": {
+     "part": "body",
+     "index": 2
+    }
+   },
+   {
+    "text": "Elle a recours dans le dossier; Mme Rochat, née le 3 juin 1975, téléphone +41 79 555 66 77, parcelle no 4321.",
+    "where": {
+     "part": "body",
+     "index": 3
+    }
+   }
+  ]
+ },
+ {
+  "name": "Counsel anonymized by the document itself",
+  "parts": [
+   {
+    "text": "A.________, vertreten durch Rechtsanwalt B.________, gegen Obergericht des Kantons Zürich. Rechtsanwalt Kunz und Richter Meier.",
+    "where": {
+     "part": "body",
+     "index": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "Italian ruling and a ruling not yet anonymized",
+  "parts": [
+   {
+    "text": "Sentenza del 5 maggio 2023. Il ricorrente Mario Rossi, via Nassa 12, 6900 Lugano, rappresentato dall'avv. Luca Bernasconi.",
+    "where": {
+     "part": "body",
+     "index": 0
+    }
+   },
+   {
+    "text": "Rossi e la moglie Anna Rossi-Bianchi; targa TI 12345 del veicolo.",
+    "where": {
+     "part": "body",
+     "index": 1
+    }
+   }
+  ]
+ },
+ {
+  "name": "Bench blocks and citations as courts write them",
+  "parts": [
+   {
+    "text": "URTEIL vom 25. September 2017 Mitwirkende Dr. Stephan Wullschleger (Vorsitz), Dr. Claudius Gelzer und Gerichtsschreiberin Dr. Ursula Kobler Beteiligte A.________, Beschwerdeführer",
+    "where": {
+     "part": "body",
+     "index": 0
+    }
+   },
+   {
+    "text": "Siégeant : Madame Ursula ZEHETBAUER GHAVAMI, présidente; Madame Nathalie RAPP, juges; en la cause A.________, recourant",
+    "where": {
+     "part": "body",
+     "index": 1
+    }
+   },
+   {
+    "text": "Vgl. Häfelin/Haller/Keller/Thurnherr, Schweizerisches Bundesstaatsrecht, 9. Aufl. 2016, N. 676; OFK/StGB-Donatsch, 21. Aufl., Art. 12 N 15; (Hohl, Procédure civile, tome I, 2001, n. 714).",
+    "where": {
+     "part": "body",
+     "index": 2
+    }
+   },
+   {
+    "text": "Die Zeugin bestätigte dies (Aussage Krasniqi, act. 7 S. 2), Wullschleger habe nichts gesehen.",
+    "where": {
+     "part": "body",
+     "index": 3
+    }
+   },
+   {
+    "text": "La greffière Nathalie LOCHER La présidente Doris GALEAZZI-WANGELER",
+    "where": {
+     "part": "body",
+     "index": 4
+    }
+   }
+  ]
+ },
+ {
+  "name": "What is not a leak: letterheads, offices, prisons, counsel, look-alikes",
+  "parts": [
+   {
+    "text": "Hochschulstrasse 17 Postfach 3001 Bern Telefon +41 31 635 48 09 Fax +41 31 634 50 54",
+    "where": {
+     "part": "header",
+     "index": 0
+    }
+   },
+   {
+    "text": "A.________, zurzeit in Haft im Gefängnis Bässlergut, Freiburgerstrasse 48, 4057 Basel, vertreten durch B.________, gegen IV-Stelle Bern, Scheibenstrasse 70, 3001 Bern.",
+    "where": {
+     "part": "body",
+     "index": 0
+    }
+   },
+   {
+    "text": "C.________, vertreten durch lic. iur. Gojko Reljic, Rechtsberatung für Ausländer, Quaderstrasse 18, 7000 Chur.",
+    "where": {
+     "part": "body",
+     "index": 1
+    }
+   },
+   {
+    "text": "Une lésion du ménisque externe le 3 décembre 2013; la cause est terminata il 18 febbraio 2021; selon le ch. I 1 de la LF du 19 juin 2015.",
+    "where": {
+     "part": "body",
+     "index": 2
+    }
+   },
+   {
+    "text": "Courriel à info@I.ch et à D.________, geboren am 4. Mai 1971, wohnhaft Musterweg 12, 8000 Zürich, Natel 079 555 66 77.",
+    "where": {
+     "part": "body",
+     "index": 3
+    }
+   }
+  ]
+ },
+ {
+  "name": "Names that are also words",
+  "parts": [
+   {
+    "text": "Im Streit um den Saldo zahlte Saldo nichts. Streit bestritt dies am Schweizer Handelsplatz. Dr. Saldo ist kein Schweizer.",
+    "where": {
+     "part": "body",
+     "index": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "A role in a comment makes no one public",
+  "parts": [
+   {
+    "text": "Die Beschwerdegegnerin Krasniqi bestritt dies.",
+    "where": {
+     "part": "body",
+     "index": 0
+    }
+   },
+   {
+    "text": "Gerichtsschreiberin Krasniqi noch anonymisieren?",
+    "where": {
+     "part": "comment",
+     "index": 0
+    }
+   }
+  ]
+ }
+]

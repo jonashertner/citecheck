@@ -31,11 +31,12 @@ test('the install page loads nothing from elsewhere and runs no script', () => {
 
 test('the only foreign resource in the page is office.js', () => {
   const foreign = [...read('taskpane.html').matchAll(/(?:src|href)="(https?:\/\/[^"]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(foreign.filter((u) => u !== 'https://github.com/jonashertner/citecheck'), ['https://appsforoffice.microsoft.com/lib/1/hosted/office.js']);
+  // Links the reader clicks: the repository and its issues (feedback). Neither is requested by the page.
+  assert.deepEqual(foreign.filter((u) => u !== 'https://github.com/jonashertner/citecheck' && u !== 'https://github.com/jonashertner/citecheck/issues'), ['https://appsforoffice.microsoft.com/lib/1/hosted/office.js']);
   assert.ok(!/url\(|@import/.test(read('css/pane.css')), 'the stylesheet loads nothing');
 });
 
-test('only index.js talks to the network, and only to the list next to the page', () => {
+test('only index.js talks to the network, and only to the two lists next to the page', () => {
   for (const file of scripts) {
     const source = code(file);
     for (const api of ['XMLHttpRequest', 'WebSocket', 'EventSource', 'sendBeacon', 'RTCPeerConnection', 'importScripts', 'eval(', 'new Function', 'innerHTML', 'outerHTML', 'insertAdjacentHTML', 'document.write']) {
@@ -47,7 +48,10 @@ test('only index.js talks to the network, and only to the list next to the page'
     if (file !== 'index.js') assert.ok(!/\bfetch\(/.test(source), `${file} calls fetch`);
   }
   const fetches = [...code('index.js').matchAll(/fetch\(([^,]+),/g)].map((m) => m[1].trim());
-  assert.deepEqual(fetches, ["base + 'index.json'", 'base + manifest.file']);
+  assert.deepEqual(fetches, ['base + name', 'base + manifest.file']);
+  // `name` can only be one of the two manifests: the cite list's and the word list's.
+  assert.match(code('index.js'), /const MANIFESTS = new Set\(\['index\.json', 'vocabulary\.json'\]\);/);
+  assert.match(code('index.js'), /if \(!MANIFESTS\.has\(name\)\) throw/);
   assert.match(code('index.js'), /\^\[A-Za-z0-9\._-\]\+\$/, 'the list file name cannot leave the directory');
 });
 
@@ -57,7 +61,10 @@ test('the decision address is only ever a link the user clicks, never a request'
   assert.match(code('app.js'), /a\.rel = 'noopener noreferrer'/);
 });
 
-test('Word is asked to read, select and comment, nothing else', () => {
+test('Word is asked to read, select and comment, and to open a new document from the copy', () => {
   const calls = [...code('word.js').matchAll(/\.(insert\w+|delete\w*|clear|set\w+|replace\w*|save|close)\(/g)].map((m) => m[1]);
   assert.deepEqual(calls, ['insertComment']);
+  // The anonymized copy opens as a new document; nothing is written into the open one.
+  const creates = [...code('word.js').matchAll(/\.(createDocument|open|insertFileFromBase64|insertOoxml|insertHtml)\(/g)].map((m) => m[1]);
+  assert.deepEqual(creates, ['createDocument', 'open']);
 });

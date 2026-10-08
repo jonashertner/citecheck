@@ -1,16 +1,21 @@
 # citecheck
 
-A Word add-in for courts (in the pane: Zitatprüfung, Contrôle des citations,
-Controllo delle citazioni). It reads the draft decision, finds the references to
-case law and checks each one against the public OpenCaseLaw cite list: is there
-a decision under this label, and does it have the cited Erwägung? The check runs
-in the task pane on the workstation. The draft is not sent anywhere.
+A Word add-in for courts with two checks, both run in the task pane on the
+workstation; the document is not sent anywhere.
+
+- **Zitate** (Citations, Citazioni): finds the references to case law in a draft
+  and checks each against the public OpenCaseLaw cite list. Is there a decision
+  under this label, and does it have the cited Erwägung?
+- **Anonymisierung** (Anonymisation, Anonimizzazione): shows everything in the
+  version to be published that could make a person identifiable, lets the
+  clerk tick what to replace, and writes an anonymized copy that it checks again
+  before handing it out.
 
 <img src="docs/pane.png" width="360" alt="The task pane after a check: a summary, the draft's margin with one mark per reference, and the findings. Shown with the sample list.">
 
 MIT licence. No account, no server of ours in the loop, no language model.
-About 2,000 lines of plain JavaScript, CSS and Python with no dependencies, so
-that a court's IT can read all of it.
+About 3,000 lines of plain JavaScript, plus CSS and Python, with no
+dependencies, so that a court's IT can read all of it.
 
 ## What it checks
 
@@ -43,12 +48,68 @@ What it does not do, and says so in the pane:
 - It never changes the draft. It can select a reference and, if asked, attach a
   Word comment to it.
 
+## The anonymization check
+
+<img src="docs/pane-anon.png" width="360" alt="The anonymization mode after a check: three places to look at (an address, an AHV number, a name missed once and also standing in a comment), two of them ticked with their placeholders, and the hidden details the copy drops. Shown with a published ruling into which these slips were put back.">
+
+One rule: **everything the file carries is either explained or shown.** A word
+or number is explained when it is
+
+- **common**: a word found in many published rulings that is not a person's
+  name (the word list, below), or a number of a common shape (date, amount,
+  legal reference, docket, section, count);
+- **made public by the ruling itself**: the bench, counsel and officials named
+  with their office, authors and case names inside citations. A category the
+  ruling anonymizes itself (counsel written as B.________) is not explained;
+- **a placeholder**: A.________, [...], X.
+
+Everything else is shown, grouped: "Hans Müller", "Müllers" and "MÜLLER" are one
+entry with every place it stands. A recognised identifier is shown with its
+label even when its parts are common words: AHV number (check digit verified),
+IBAN, phone number, e-mail address, social media profile, street address,
+number plate, land parcel, date of birth, insured-person or policy number,
+ZEMIS number, ID document number, account number. The same details of an
+office, an insurer, a company or counsel are explained.
+
+"Everything the file carries" includes what a reader does not see: comments
+(and their authors), text deleted with tracked changes, hidden text, field
+codes, image descriptions, document properties and variables, data a
+case-management system left in `customXml/`, link targets, the file name.
+
+The clerk ticks what to replace; a person gets one letter wherever and however
+the name is written (letters already used by the document are skipped).
+**"Create anonymised copy"** writes a new `.docx`:
+
+- every ticked form replaced, also where Word split it across formatting runs;
+- tracked changes accepted, deletions gone; comments, hidden text, document
+  properties, the page thumbnail, custom XML, document variables and the
+  template path removed;
+- the copy is read back and checked like any document; only then is it opened
+  as a new Word document (or offered as a download), with the result stated.
+
+The open document is never changed.
+
+What it does not do, and says so in the pane:
+
+- It does not judge whether several common facts together (age, place,
+  occupation) make a person identifiable.
+- Text inside images is not read; embedded files are not checked.
+- It decides nothing: what is shown, the clerk decides on.
+
+How well it works is measured, not claimed: [docs/benchmark-anonymization.md](docs/benchmark-anonymization.md)
+gives the figures on 5,724 published, anonymized rulings the word list never saw. In short: every
+identifier put next to a placeholder (AHV number, IBAN, mobile, address, plate, parcel, date of birth)
+is shown; a name missed in one place is shown in about 96 to 97 % of cases; a German ruling shows a
+median of 6 entries to look at, a French one 4. Where a surname is also an ordinary word (Frei, Sommer)
+the check cannot always tell; the report says how often.
+
 ## How it stays local
 
 Read [SECURITY.md](SECURITY.md) for the data flow and how to verify it. In short:
 the page's Content-Security-Policy allows connections to its own origin only, so
-the browser refuses anything else; the only download is the cite list, a public
-file that is the same for everyone; `tests/egress.test.mjs` pins all of this.
+the browser refuses anything else; the only downloads are the cite list and the
+word list, public files that are the same for everyone; `tests/egress.test.mjs`
+pins all of this.
 
 ## Install
 
@@ -92,12 +153,21 @@ addin/            the add-in: static files, served by any web server
   js/parser.js    finds references in prose (port of the OpenCaseLaw research client, `ocl`)
   js/index.js     the cite list: download, SHA-256 check, cache, binary search
   js/check.js     the rules: found / differs / not in the list / not checked
-  js/word.js      the three things asked of Word: read, select, comment
+  js/word.js      what is asked of Word: read, select, comment, open the anonymized copy
   js/docx.js      outside Word: reads a .docx in the page (unzip + paragraph text)
   js/app.js       the pane
+  js/anon.js      the anonymization check (pure); js/anon-patterns.js its patterns
+  js/vocabulary.js  the word list: binary search over its bytes
+  js/docfile.js   everything a .docx carries; writes the anonymized copy
+  js/anon-pane.js the anonymization mode of the pane
   index/          where the cite list is served from (index.json + one .tsv.gz)
+  data/           the word list (vocabulary.json + one .txt.gz), in the repository
 build/
   build_cite_index.py   verification pack -> cite list (standard library only)
+  anon_engine.py        the anonymization check in Python, the twin of anon.js
+  build_vocabulary.py   corpus + name lists -> word list
+  name_lists.py         reads the name lists (build time only)
+  bench_anon.py         the benchmark on held-out rulings
   make_manifest.py      the Office manifest for your host
   make_icons.py         the icons (Pillow)
 tests/            node --test and pytest; no network
@@ -144,6 +214,35 @@ reproducible. The hosted list is rebuilt every night by
 `build/publish_cite_index.py` (systemd units in `build/systemd/`), uploaded to
 the HuggingFace mirror and picked up by the Pages workflow.
 
+## The word list
+
+One gzip text file: a header, then one lower-case word per line, sorted by UTF-8
+bytes; lines starting with `!` mark names the compound rule must not explain
+(Hof+mann is a name, Schnee+last is not). It holds no text of any ruling and no
+name. A word is in it when it occurs in at least 5 published rulings of at least
+2 courts and is not a person's name. A word that is also a name (on the lists of
+surnames and first names of the Swiss resident population, or a Wikidata family
+or given name) stays in only when the corpus uses it as an ordinary word: written
+in lower case at least as often as capitalised, or at least 100 times more
+frequent in rulings than among residents and rarely after a title or an office.
+"März", "Recht" and "Basler" are common; "Seiler" and "Meyer" stay names however
+often judges carry them. Inflected names ("Müllers") are judged like the name.
+
+Sources: the OpenCaseLaw corpus (HuggingFace `voilaj/swiss-caselaw`, CC0); the
+Federal Statistical Office (BFS) lists of surnames and first names of the
+permanent resident population (opendata.swiss; source: BFS); Wikidata family
+and given names (CC0). The name lists are used when the list is built and are
+not shipped.
+
+```
+python build/build_vocabulary.py --download /tmp/hf --names-dir names/ --out addin/data
+```
+
+reads the 120 court files of the mirror one at a time (download, count, delete;
+about 45 minutes) and needs pyarrow. `--holdout 10` leaves every tenth ruling
+out for the benchmark; `--stats FILE` keeps the counts so the rules can be
+adjusted (`--from-stats`) without reading the corpus again.
+
 ## Try it without Word
 
 ```
@@ -158,11 +257,22 @@ invented decisions; the pane marks such a list as a sample.
 ## Tests
 
 ```
-npm test                 # node >= 20: parser, list search, rules, data-flow guarantees
-python -m pytest tests   # the list builder
+npm test                 # node >= 20: parser, list search, rules, anonymization check
+                         # (and its parity with the Python twin), .docx reading and
+                         # writing, data-flow guarantees
+python -m pytest tests   # the list builders
 ```
 
 ## State
+
+**Anonymization check: preview** (2026-10-08). Verified in headless Chromium outside Word: reading every
+part of a .docx, the check, the list, keyboard use, the anonymized copy and its re-check; the copy also
+reads cleanly in macOS's own .docx reader (`textutil`). Not yet run inside Word: whether
+`getFileAsync` hands over unsaved changes, selecting a place, and opening the copy as a new document are
+the first things to confirm there. The pane marks the mode as a preview and asks for feedback on GitHub,
+without content from documents.
+
+**Cite check:**
 
 Version 0.1.0 (manifest 1.0.0.0, which Microsoft's validator requires). Verified in headless Chromium: the pane, the list download and
 cache, the checks, and that Microsoft's office.js loads under the policy without

@@ -1,0 +1,520 @@
+// The anonymization mode of the pane. It reads everything the file carries,
+// shows what the check could not explain, lets the clerk tick what to replace
+// and writes a new, anonymized copy, which it checks again before handing it
+// out. The open document is never written to.
+//
+// State lives here; the DOM is rebuilt from it with createElement and
+// textContent only, so text from the document is never parsed as HTML.
+
+import { check, fold } from './anon.js';
+import { openVocabulary } from './index.js';
+import { readFile, anonymizedCopy } from './docfile.js';
+import * as word from './word.js';
+import { formatNumber, t } from './i18n.js';
+
+const DATA_BASE = new URL('../data/', import.meta.url).href;
+const VISIBLE = new Set(['body', 'footnote', 'endnote', 'header', 'footer']);
+const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+const BLANK = '[…]';
+// What the copy drops by itself; field codes and link targets stay unless replaced.
+const REMOVED = new Set(['comment', 'deleted', 'hidden', 'alt', 'property', 'custom', 'filename']);
+const $ = (id) => document.getElementById(id);
+
+const state = {
+  host: 'browser',
+  vocabulary: null,
+  file: null,            // outside Word: {name, buffer}
+  read: null,            // {parts, notes} of the file last checked
+  checked: null,         // the bytes of that file: the copy is made from exactly these
+  result: null,
+  rows: [],              // what the clerk decides on: one per person, identifier or number
+  decide: new Map(),     // row key -> {replace, ok, placeholder}
+  style: 'long',
+  open: null,
+  busy: false,
+  copy: null,            // {left, opened, url, name}
+};
+
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function say(message) {
+  $('a-alert').textContent = message || '';
+  $('a-alert').hidden = !message;
+}
+
+const letter = (i) => (state.style === 'long' ? i + '.________' : i + '.');
+
+// ── from the check's entries to the rows the clerk decides on ─────────────
+function buildRows(result, parts) {
+  const byId = new Map(result.entries.map((e) => [e.id, e]));
+  const inPerson = new Map();
+  for (const ids of result.persons) for (const id of ids) inPerson.set(id, ids);
+  const rows = [];
+  const done = new Set();
+  for (const e of result.entries) {
+    if (done.has(e.id)) continue;
+    const ids = inPerson.get(e.id) || [e.id];
+    ids.forEach((id) => done.add(id));
+    const entries = ids.map((id) => byId.get(id));
+    const occurrences = merge(entries.flatMap((x) => x.occurrences)
+      .map((o) => ({ ...o, kind: parts[o.part].where.part }))
+      .sort((a, b) => a.part - b.part || a.start - b.start), parts);
+    rows.push({
+      key: e.kind === 'word' ? 'p:' + entries.map((x) => x.key).sort().join('|') : e.key,
+      kind: e.kind,
+      label: e.label,
+      person: e.kind === 'word' && entries.length > 1,
+      forms: [...new Set(entries.flatMap((x) => x.forms))],
+      text: entries.map((x) => x.text).join(' '),
+      removed: occurrences.every((o) => REMOVED.has(o.kind)),
+      occurrences,
+      hidden: occurrences.every((o) => !o.visible),
+    });
+  }
+  return rows;
+}
+
+// "Hans" and "Müller" side by side are one place, "Hans Müller".
+function merge(occurrences, parts) {
+  const out = [];
+  for (const o of occurrences) {
+    const last = out[out.length - 1];
+    const gap = last && last.part === o.part ? parts[o.part].text.slice(last.end, o.start) : null;
+    if (gap !== null && /^[ -\u2011]$/.test(gap)) {
+      last.text = parts[o.part].text.slice(last.start, o.end);
+      last.end = o.end;
+    } else {
+      out.push({ ...o });
+    }
+  }
+  return out;
+}
+
+// Letters not used by the placeholders already in the document, in order of first appearance.
+function assignPlaceholders() {
+  const used = new Set(Object.keys(state.result.placeholders).map((p) => p[0]));
+  for (const d of state.decide.values()) if (d.placeholder !== BLANK) used.add(d.placeholder[0]);   // kept from the last check
+  const free = LETTERS.filter((l) => !used.has(l));
+  let next = 0;
+  for (const row of state.rows) {
+    const d = state.decide.get(row.key);
+    if (d && d.placeholder) continue;
+    const placeholder = row.kind === 'word' ? letter(free[next++ % free.length] || 'X') : BLANK;
+    state.decide.set(row.key, { replace: d ? d.replace : false, ok: d ? d.ok : false, placeholder });
+  }
+}
+
+function restyle(style) {
+  state.style = style;
+  for (const d of state.decide.values()) {
+    if (d.placeholder !== BLANK) d.placeholder = letter(d.placeholder[0]);
+  }
+}
+
+// ── reading and checking ──────────────────────────────────────────────────
+async function ensureVocabulary() {
+  if (state.vocabulary) return true;
+  try {
+    state.vocabulary = (await openVocabulary({ base: DATA_BASE })).vocabulary;
+    return true;
+  } catch {
+    say(t('a_err_vocab'));
+    return false;
+  }
+}
+
+async function fileBytes() {
+  if (state.host === 'word') return word.readFile();
+  return state.file && state.file.buffer;
+}
+
+export async function runCheck() {
+  say('');
+  state.busy = 'check';
+  render();
+  try {
+    if (!(await ensureVocabulary())) return;
+    let buffer;
+    try { buffer = await fileBytes(); } catch (error) { say(t('a_err_file', { message: (error && error.message) || String(error) })); return; }
+    if (!buffer) return;
+    state.checked = buffer;
+    state.read = await readFile(buffer, state.host === 'word' ? '' : state.file.name);
+    state.result = check(state.read.parts, state.vocabulary);
+    const before = state.decide;
+    state.rows = buildRows(state.result, state.read.parts);
+    state.decide = new Map(state.rows.filter((r) => before.has(r.key)).map((r) => [r.key, before.get(r.key)]));
+    assignPlaceholders();
+    state.copy = null;
+    state.open = null;
+  } catch (error) {
+    say(t('err_generic', { message: (error && error.message) || String(error) }));
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+// ── the copy ──────────────────────────────────────────────────────────────
+let previousUrl = null;
+
+// Unchanged means: every part reads the same. Bytes may differ between two reads of
+// an unchanged document (Word may rewrite a timestamp), so they are not compared.
+async function same(a, b) {
+  const text = async (buffer) => JSON.stringify((await readFile(buffer, '')).parts.map((p) => [p.where.part, p.where.file, p.where.seq, p.text]));
+  return (await text(a)) === (await text(b));
+}
+
+async function makeCopy() {
+  say('');
+  state.busy = 'copy';
+  state.copy = null;
+  render();
+  try {
+    // The copy is made from the file as it was checked: places are paragraph and offset in it.
+    // If the document changed in Word since, a fresh check comes first.
+    const buffer = state.checked;
+    if (state.host === 'word' && !(await same(await word.readFile(), buffer))) {
+      say(t('a_changed'));
+      return;
+    }
+    const ticked = state.rows.filter((r) => state.decide.get(r.key).replace);
+    const replacements = ticked.map((r) => ({
+      placeholder: state.decide.get(r.key).placeholder,
+      forms: r.forms,
+      places: r.occurrences.filter((o) => o.visible).map((o) => {
+        const w = state.read.parts[o.part].where;
+        return { file: w.file, seq: w.seq, start: o.start, end: o.end };
+      }),
+    }));
+    const copy = await anonymizedCopy(buffer, replacements);
+    // The copy is read and checked like any document before it is handed out.
+    const read = await readFile(copy, '');
+    const again = check(read.parts, state.vocabulary);
+    const replacedKeys = new Set(ticked.flatMap((r) => r.forms.map(fold)));
+    // Left over: a ticked form anywhere, or anything in what the copy must have removed.
+    const left = again.entries.filter((e) => e.occurrences.some((o) =>
+      replacedKeys.has(fold(o.text)) || REMOVED.has(read.parts[o.part].where.part))).length;
+    const name = ((state.file && state.file.name) || 'Entscheid.docx').replace(/\.docx$/i, '') + ' anonymisiert.docx';
+    if (previousUrl) URL.revokeObjectURL(previousUrl);
+    state.copy = { left, name };
+    if (!left && word.canOpenCopy()) {
+      state.copy.opened = await word.openCopy(copy);
+    } else {
+      state.copy.url = previousUrl = URL.createObjectURL(new Blob([copy], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }));
+    }
+  } catch (error) {
+    say(t('err_generic', { message: (error && error.message) || String(error) }));
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+// ── showing a place in Word ───────────────────────────────────────────────
+async function show(row, i) {
+  const o = row.occurrences[i];
+  if (state.host !== 'word' || !o.visible) return;
+  // The nth place with this spelling in this part, as Word's search counts them.
+  const nth = row.occurrences.slice(0, i).filter((p) => p.text === o.text && p.kind === o.kind).length;
+  const where = state.read.parts[o.part].where;
+  try {
+    const ok = o.kind === 'footnote'
+      ? await word.show({ text: o.text, where, nth: 0 })
+      : await word.showText(o.text, nth, o.kind);
+    if (!ok) say(t('show_failed'));
+  } catch (error) {
+    say(t('err_generic', { message: (error && error.message) || String(error) }));
+  }
+}
+
+// ── rendering ─────────────────────────────────────────────────────────────
+function placeName(o) {
+  const where = state.read.parts[o.part].where;
+  if (o.kind === 'body') return t('paragraph', { n: where.index + 1 });
+  if (o.kind === 'footnote') return t('footnote', { n: where.note + 1 });
+  return t('part_' + o.kind);
+}
+
+function contextOf(o) {
+  const text = state.read.parts[o.part].text;
+  // Cut at a word boundary, and only where the context really is cut.
+  const before = o.start > 60 ? text.slice(o.start - 60, o.start).replace(/^\S*\s/, '') : text.slice(0, o.start);
+  const after = o.end + 60 < text.length ? text.slice(o.end, o.end + 60).replace(/\s\S*$/, '') : text.slice(o.end);
+  const p = el('p', 'ctx');
+  p.append((o.start > 60 ? '… ' : '') + before, el('mark', null, o.text), after + (o.end + 60 < text.length ? ' …' : ''));
+  return p;
+}
+
+function describe(row) {
+  if (row.kind === 'identifier') return t('lab_' + row.label);
+  if (row.kind === 'number') return t('lab_number');
+  return row.person ? t('lab_person') : t('lab_word');
+}
+
+function renderRow(row) {
+  const d = state.decide.get(row.key);
+  const li = el('li', 'a-row' + (d.replace ? ' a-replace' : '') + (d.ok ? ' a-ok' : '') + (state.open === row.key ? ' a-open' : '') + (row.kind === 'identifier' ? ' a-identifier' : ''));
+  li.id = 'r-' + state.rows.indexOf(row);
+
+  const head = el('div', 'a-head');
+  const box = el('input', 'a-tick');
+  box.dataset.focus = 'tick:' + row.key;
+  box.type = 'checkbox';
+  box.checked = d.replace;
+  box.setAttribute('aria-label', t('a_replace') + ': ' + row.text);
+  box.addEventListener('change', () => { d.replace = box.checked; if (d.replace) d.ok = false; state.copy = null; render(); });
+
+  const name = el('button', 'a-name');
+  name.dataset.focus = 'name:' + row.key;
+  name.type = 'button';
+  name.setAttribute('aria-expanded', String(state.open === row.key));
+  name.append(el('span', 'a-forms', row.text));
+  if (d.replace) name.append(el('span', 'a-becomes', d.placeholder));
+  name.addEventListener('click', () => { state.open = state.open === row.key ? null : row.key; render(); if (state.open) show(row, 0); });
+
+  const count = el('span', 'a-count', t('a_times', { n: row.occurrences.length }));
+  if (row.removed) {
+    box.disabled = true;
+    box.checked = true;
+    box.setAttribute('aria-label', t('a_removed'));
+  }
+  const chip = el('select', 'a-chip');
+  chip.dataset.focus = 'chip:' + row.key;
+  chip.setAttribute('aria-label', t('a_replace') + ': ' + row.text + ', ' + t('a_by'));
+  const options = row.kind === 'word' ? [...LETTERS.map(letter), BLANK] : [BLANK, ...LETTERS.map(letter)];
+  for (const value of options) {
+    const opt = el('option', null, value === BLANK ? BLANK : value[0]);      // the letter; the row shows the whole placeholder
+    opt.value = value;
+    opt.selected = value === d.placeholder;
+    chip.append(opt);
+  }
+  chip.addEventListener('change', () => { d.placeholder = chip.value; d.replace = true; d.ok = false; state.copy = null; render(); });
+  head.append(box, name, count);
+  if (!row.removed) head.append(chip);
+  li.append(head);
+
+  // Where it stands: per kind of place, with a count where there are several.
+  const kinds = new Map();
+  for (const o of row.occurrences) kinds.set(o.kind, (kinds.get(o.kind) || 0) + 1);
+  const where = [...kinds].map(([k, n]) => (k === 'body' && n === 1 ? placeName(row.occurrences[0]) : t('part_' + k) + (n > 1 ? ' ' + t('a_times', { n }) : '')));
+  const line = el('div', 'a-line' + (state.open === row.key ? '' : ' a-short'));
+  line.append(el('p', null, describe(row) + '.'));
+  // Other spellings of a name; an identifier is one form, never split into words.
+  const variants = row.kind === 'word' ? row.forms.filter((f) => !row.text.split(' ').includes(f)) : row.forms.filter((f) => f !== row.text);
+  if (variants.length) line.append(el('p', null, t('a_variants', { list: variants.join(', ') })));
+  line.append(el('p', null, t('a_where', { list: where.join(', ') })));
+  if (row.hidden) line.append(el('p', null, row.removed ? t('a_removed') : t('a_kept')));
+  li.append(line);
+
+  if (state.open === row.key) {
+    const body = el('div', 'a-body');
+    const list = el('ol', 'a-places');
+    row.occurrences.slice(0, 40).forEach((o, i) => {
+      const item = el('li');
+      const place = el('button', 'a-place', placeName(o));
+      place.type = 'button';
+      place.disabled = state.host !== 'word' || !o.visible;
+      place.addEventListener('click', () => show(row, i));
+      item.append(place, contextOf(o));
+      list.append(item);
+    });
+    body.append(list);
+    const actions = el('div', 'f-actions');
+    const ok = el('button', 'quiet', d.ok ? t('a_ok_undo') : t('a_ok'));
+    ok.dataset.focus = 'ok:' + row.key;
+    ok.type = 'button';
+    ok.addEventListener('click', () => { d.ok = !d.ok; if (d.ok) d.replace = false; render(); });
+    actions.append(ok);
+    if (state.host === 'word' && word.canComment() && row.occurrences[0].kind === 'body') {
+      const c = el('button', 'quiet', t('comment'));
+      c.type = 'button';
+      c.addEventListener('click', async () => {
+        const o = row.occurrences[0];
+        const where = state.read.parts[o.part].where;
+        if (await word.comment({ text: o.text, where: { part: 'body', index: where.index }, nth: 0 }, t('a_comment', { label: describe(row) }))) {
+          c.textContent = t('commented'); c.disabled = true;
+        }
+      });
+      actions.append(c);
+    }
+    body.append(actions);
+    li.append(body);
+  }
+  return li;
+}
+
+function renderGroup(container, title, rows) {
+  container.replaceChildren();
+  if (!rows.length) return;
+  const head = el('div', 'a-group-head');
+  head.append(el('h2', null, title));
+  const choosable = rows.filter((r) => !r.removed);
+  if (choosable.length > 1) {
+    const all = choosable.every((r) => state.decide.get(r.key).replace);
+    const toggle = el('button', 'link', all ? t('a_select_none') : t('a_select_all'));
+    toggle.type = 'button';
+    toggle.addEventListener('click', () => {
+      for (const r of choosable) { const d = state.decide.get(r.key); d.replace = !all; if (d.replace) d.ok = false; }
+      state.copy = null;
+      render();
+    });
+    head.append(toggle);
+  }
+  container.append(head);
+  const ol = el('ol', 'a-list');
+  ol.append(...rows.map(renderRow));
+  container.append(ol);
+}
+
+// The draft's margin: one mark per place in the visible text, red until decided.
+function renderMargin() {
+  const parts = state.read.parts;
+  const lengths = parts.map((p) => (VISIBLE.has(p.where.part) ? p.text.length + 1 : 0));
+  const total = lengths.reduce((s, n) => s + n, 0) || 1;
+  const offsets = [];
+  lengths.reduce((s, n, i) => { offsets[i] = s; return s + n; }, 0);
+  const marks = [];
+  state.rows.forEach((row, i) => {
+    const d = state.decide.get(row.key);
+    for (const o of row.occurrences) {
+      if (!o.visible) continue;
+      const tick = el('span', 'tick ' + (d.replace ? 'tick-replaced' : d.ok ? 'tick-found' : 'tick-missing') + (state.open === row.key ? ' tick-open' : ''));
+      tick.style.top = ((offsets[o.part] + o.start) / total) * 100 + '%';
+      tick.addEventListener('click', () => { state.open = row.key; render(); $('r-' + i)?.scrollIntoView({ block: 'nearest' }); });
+      marks.push(tick);
+    }
+  });
+  $('a-margin').replaceChildren(...marks);
+}
+
+function renderWhy() {
+  const x = state.result.explained;
+  const dl = $('a-why');
+  dl.replaceChildren();
+  const add = (label, value) => { if (value) dl.append(el('dt', null, label), el('dd', null, value)); };
+  add(t('why_placeholders'), Object.entries(state.result.placeholders).map(([p, n]) => p + ' ' + t('a_times', { n })).join(', '));
+  add(t('why_court'), x.court.join(', '));
+  add(t('why_counsel'), x.counsel.join(', '));
+  add(t('why_official'), x.official.join(', '));
+  add(t('why_author'), x.author.join(', '));
+  add(t('why_case'), x.case.join(', '));
+  add(t('why_public'), Object.entries(x.public).map(([k, n]) => t('lab_' + k) + ' ' + t('a_times', { n })).join(', '));
+  add(t('why_common'), t('why_common_n', { words: formatNumber(x.common), numbers: formatNumber(x.numbers) }));
+  if (x.anonymized_roles.length) dl.append(el('dd', 'why-wide', t('why_anonymized_roles', { roles: x.anonymized_roles.map((r) => t('role_' + r)).join(', ') })));
+}
+
+// Rebuilding the list would drop the keyboard focus; it returns to the same control.
+export function render() {
+  const focused = document.activeElement && document.activeElement.dataset && document.activeElement.dataset.focus;
+  draw();
+  if (focused) {
+    const again = [...document.querySelectorAll('[data-focus]')].find((n) => n.dataset.focus === focused);
+    if (again) again.focus({ preventScroll: true });
+  }
+}
+
+function draw() {
+  $('a-purpose').textContent = t('a_purpose');
+  $('a-preview').textContent = t('a_preview');
+  $('a-feedback').textContent = t('a_feedback');
+  $('a-check').textContent = state.busy === 'check' ? t('a_checking') : state.result ? t('a_recheck') : t('a_check');
+  $('a-check').className = state.result ? 'quiet wide' : 'primary';      // once there is a result, the copy is the main action
+  $('a-check').disabled = Boolean(state.busy) || (state.host !== 'word' && !state.file);
+  $('a-file').hidden = state.host === 'word';
+  $('a-pick').textContent = state.file ? t('a_other_file') : t('pick_file');
+  $('a-file-line').textContent = state.file ? state.file.name : t('a_drop');
+  $('a-file').classList.toggle('loaded', Boolean(state.file));
+  $('a-why-open').textContent = t('a_why');
+  $('a-limit').textContent = t('a_limit');
+  $('a-style-label').textContent = t('a_style');
+  $('a-copy').textContent = state.busy === 'copy' ? t('a_copying') : t('a_copy');
+  $('a-copy-note').textContent = t('a_copy_note');
+
+  const r = state.result;
+  $('a-summary').hidden = $('a-results').hidden = $('a-copybar').hidden = !r;
+  $('a-empty').hidden = Boolean(r);
+  $('a-empty-title').textContent = t('a_empty_title');
+  $('a-empty-body').textContent = t('a_empty_body');
+  if (!r) return;
+
+  const decide = state.rows.filter((row) => !row.removed);
+  const open = decide.filter((row) => !state.decide.get(row.key).ok && !state.decide.get(row.key).replace).length;
+  const n = decide.length;
+  const hiddenOnly = state.rows.length - n;
+  const verdict = !n ? t('a_clean') : !r.anonymized ? (n === 1 ? t('a_raw_one') : t('a_raw', { n: formatNumber(n) }))
+    : n === 1 ? t('a_attention_one') : t('a_attention', { n: formatNumber(n) });
+  $('a-verdict').textContent = verdict;
+  $('a-verdict').className = 'verdict ' + (n && open ? 'verdict-attention' : 'verdict-clean');
+  $('a-explained').textContent = (hiddenOnly ? t('a_hidden_note', { n: formatNumber(hiddenOnly) }) + ' ' : '') +
+    t('a_explained', { words: formatNumber(r.explained.common), numbers: formatNumber(r.explained.numbers) });
+  renderWhy();
+
+  renderGroup($('a-text'), t('a_in_text'), state.rows.filter((row) => !row.hidden));
+  renderGroup($('a-file-group'), t('a_in_file'), state.rows.filter((row) => row.hidden));
+  const notes = [];
+  if (state.read.notes.images) notes.push(t('a_images', { n: state.read.notes.images }));
+  if (state.read.notes.embedded) notes.push(t('a_embedded', { n: state.read.notes.embedded }));
+  $('a-limit').textContent = [...notes, t('a_limit')].join(' ');
+  renderMargin();
+
+  const style = $('a-style');
+  if (!style.options.length) {
+    for (const [value, label] of [['long', 'A.________'], ['short', 'A.']]) {
+      const opt = el('option', null, label); opt.value = value; style.append(opt);
+    }
+  }
+  style.value = state.style;
+  $('a-copy').disabled = Boolean(state.busy);
+  const result = $('a-copy-result');
+  result.replaceChildren();
+  result.hidden = !state.copy;
+  if (state.copy) {
+    const c = state.copy;
+    result.className = 'copy-result ' + (c.left ? 'copy-left' : 'copy-clean');
+    if (c.left) result.append(t('a_copy_left', { n: c.left }) + ' ');
+    else result.append((c.opened ? t('a_copy_opened') : t('a_copy_ready')) + ' ');
+    if (c.url) {
+      const a = el('a', null, t('a_download'));
+      a.href = c.url;
+      a.download = c.name;
+      result.append(a);
+    }
+  }
+}
+
+export function start(host) {
+  state.host = host;
+  try { if (localStorage.getItem('citecheck.placeholder') === 'short') state.style = 'short'; } catch { /* private mode */ }
+  $('a-check').addEventListener('click', runCheck);
+  $('a-copy').addEventListener('click', makeCopy);
+  $('a-style').addEventListener('change', () => {
+    restyle($('a-style').value);
+    try { localStorage.setItem('citecheck.placeholder', state.style); } catch { /* private mode */ }
+    state.copy = null;
+    render();
+  });
+  $('a-why-open').addEventListener('click', () => {
+    const why = $('a-why');
+    why.hidden = !why.hidden;
+    $('a-why-open').setAttribute('aria-expanded', String(!why.hidden));
+  });
+  const take = async (file) => {
+    if (!file) return;
+    state.file = { name: file.name, buffer: await file.arrayBuffer() };
+    state.result = null;
+    state.decide = new Map();
+    render();
+    await runCheck();
+  };
+  $('a-pick').addEventListener('click', () => $('a-input').click());
+  $('a-input').addEventListener('change', () => take($('a-input').files[0]));
+  const drop = $('a-drop');
+  for (const type of ['dragenter', 'dragover']) drop.addEventListener(type, (e) => { e.preventDefault(); drop.classList.add('over'); });
+  for (const type of ['dragleave', 'drop']) drop.addEventListener(type, (e) => { e.preventDefault(); drop.classList.remove('over'); });
+  drop.addEventListener('drop', (e) => take(e.dataTransfer && e.dataTransfer.files[0]));
+}

@@ -17,7 +17,7 @@ location /zitatpruefung/ {
     add_header Content-Security-Policy "default-src 'none'; script-src 'self' https://appsforoffice.microsoft.com; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'" always;
     add_header Referrer-Policy "no-referrer" always;
     add_header X-Content-Type-Options "nosniff" always;
-    location /zitatpruefung/index/ { add_header Cache-Control "no-cache" always; }
+    location ~ ^/zitatpruefung/(index|data)/ { add_header Cache-Control "no-cache" always; }
 }
 ```
 
@@ -25,6 +25,10 @@ Do not add `X-Frame-Options` or `frame-ancestors`: Word on the web shows add-ins
 in a frame.
 
 ## 2. Put the cite list next to it
+
+(The word list of the anonymization check needs nothing: it is part of the
+repository, in `addin/data/`, and is served with the other files. It changes
+with a release of the add-in, not nightly.)
 
 `addin/index/` must hold `index.json` and the one `cite-index-<date>.tsv.gz` it
 names. Two ways:
@@ -78,4 +82,5 @@ write by the add-in, including comments.
 
 Replace the files in the folder; the workstations pick them up the next time
 the pane opens. The manifest only changes when the URL or the permission
-changes. A new list is a new pair of files in `index/`.
+changes. A new list is a new pair of files in `index/`; a new word list is a new
+pair of files in `data/`, shipped with the add-in's files.

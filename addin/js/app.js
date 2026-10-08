@@ -6,6 +6,7 @@ import { readDocx } from './docx.js';
 import { checkDocument } from './check.js';
 import { parseBgeKey } from './keys.js';
 import * as word from './word.js';
+import * as anon from './anon-pane.js';
 import { LANGUAGES, courtName, formatDate, formatNumber, language, setLanguage, t } from './i18n.js';
 
 const INDEX_BASE = new URL('../index/', import.meta.url).href;
@@ -21,6 +22,7 @@ const state = {
   file: null,               // outside Word: {name, paragraphs} of the chosen .docx
   result: null, filter: 'all', open: null,
   busy: false,
+  mode: 'cites',            // 'cites' | 'anon'
 };
 
 // ── small DOM helpers ─────────────────────────────────────────────────────
@@ -139,8 +141,16 @@ const placeText = (f) => (f.where && f.where.part === 'footnote' ? t('footnote',
 // ── rendering ─────────────────────────────────────────────────────────────
 function renderChrome() {
   document.documentElement.lang = language();
-  document.title = t('title');
-  $('title').textContent = t('title');
+  const anonMode = state.mode === 'anon';
+  document.title = anonMode ? t('a_title') : t('title');
+  $('title').textContent = document.title;
+  for (const [id, mode] of [['mode-cites', 'cites'], ['mode-anon', 'anon']]) {
+    $(id).textContent = t(mode === 'cites' ? 'mode_cites' : 'mode_anon');
+    $(id).setAttribute('aria-selected', String(state.mode === mode));
+    $(id).tabIndex = state.mode === mode ? 0 : -1;
+  }
+  $('cite-head').hidden = $('cite-mode').hidden = anonMode;
+  $('anon-head').hidden = $('anon-mode').hidden = !anonMode;
   $('check').textContent = state.busy === 'check' ? t('checking') : state.result ? t('recheck') : t('check');
   $('update').textContent = state.busy === 'update' ? t('updating') : t('update');
   $('check').disabled = Boolean(state.busy) || !state.index;
@@ -151,7 +161,7 @@ function renderChrome() {
   $('pick').textContent = t('pick_file');
   $('paste-label').hidden = $('paste-text').hidden = Boolean(state.file);
   $('file-line').textContent = state.file ? t('file_loaded', { name: state.file.name, n: formatNumber(state.file.paragraphs.length) }) : t('file_hint');
-  $('privacy').textContent = t('privacy');
+  $('privacy').textContent = anonMode ? t('a_privacy') : t('privacy');
   $('about-open').textContent = t('privacy_more');
   $('langs').replaceChildren(...LANGUAGES.map((code) => {
     const b = el('button', 'lang', code.toUpperCase());
@@ -269,8 +279,16 @@ function renderFinding(f) {
 
 function render() {
   renderChrome();
-  renderResults();
+  if (state.mode === 'anon') anon.render(); else renderResults();
   renderAbout();
+}
+
+// The cite list (several MB) is loaded only when the cite check is used.
+async function setMode(mode) {
+  state.mode = mode;
+  remember('mode', mode);
+  render();
+  if (mode === 'cites' && !state.index && !state.busy) await loadList(true);
 }
 
 function renderAbout() {
@@ -392,7 +410,7 @@ async function takeFile(file) {
   if (state.file && state.index) await runCheck();
 }
 
-// The interface language is the only thing remembered between sessions.
+// Remembered between sessions: the interface language, the mode and the placeholder style. Nothing about a document.
 function remember(key, value) { try { localStorage.setItem('citecheck.' + key, value); } catch { /* private mode */ } }
 function recall(key) { try { return localStorage.getItem('citecheck.' + key); } catch { return null; } }
 
@@ -405,6 +423,15 @@ async function start() {
   const office = state.host === 'word' && Office.context ? Office.context.displayLanguage : null;
   setLanguage(recall('language') || office || navigator.language);
 
+  state.mode = recall('mode') === 'anon' ? 'anon' : 'cites';
+  anon.start(state.host);
+  $('mode-cites').addEventListener('click', () => setMode('cites'));
+  $('mode-anon').addEventListener('click', () => setMode('anon'));
+  $('modes').addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    const next = state.mode === 'cites' ? 'anon' : 'cites';
+    setMode(next).then(() => $(next === 'cites' ? 'mode-cites' : 'mode-anon').focus());
+  });
   $('check').addEventListener('click', runCheck);
   $('update').addEventListener('click', () => loadList(true));
   $('pick').addEventListener('click', () => $('file').click());
@@ -417,7 +444,7 @@ async function start() {
   $('about-open').addEventListener('click', () => $('about').showModal());
   $('about-close').addEventListener('click', () => $('about').close());
   render();
-  await loadList(true);
+  if (state.mode === 'cites') await loadList(true);
 }
 
 start();
