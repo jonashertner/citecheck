@@ -150,6 +150,8 @@ function isoDate(day, month, year) {
   const y = Number(year);
   const m = /^\d+$/.test(month) ? Number(month) : MONTHS[String(month).toLowerCase().replace(/\.$/, '')];
   if (!m || d < 1 || d > 31 || m < 1 || m > 12) return null;
+  // A day the month does not have: 31 April, 29 February 2013.
+  if (new Date(Date.UTC(y, m - 1, d)).getUTCDate() !== d) return null;
   return String(y).padStart(4, '0') + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
 }
 
@@ -170,10 +172,14 @@ export function parseReference(written) {
   core = core.replace(/\s+/g, ' ').replace(/^[\s,;:(]+/, '').replace(/[\s.,;:]+$/, '');
 
   let date = null;
+  let dateInvalid = null;        // a date written as a date that the calendar does not have
   for (const pattern of [DATE_WORD, DATE_NUM]) {
     pattern.lastIndex = 0;
     let m;
-    while (!date && (m = pattern.exec(core)) !== null) date = isoDate(m[1], m[2], m[3]);
+    while (!date && (m = pattern.exec(core)) !== null) {
+      date = isoDate(m[1], m[2], m[3]);
+      if (!date && !dateInvalid && isoDate(1, m[2], m[3]) && Number(m[1]) >= 1 && Number(m[1]) <= 31) dateInvalid = m[0];
+    }
     if (date) break;
   }
 
@@ -222,7 +228,7 @@ export function parseReference(written) {
     if (code) canton = code[1];
   }
   const bgeFirst = Boolean(bge) && (!taken.length || b.index <= Math.min(...taken.map((t) => t.start)));
-  return { written, pinpoint, pages, date, bge, dockets, courts, canton, bgeFirst };
+  return { written, pinpoint, pages, date, dateInvalid: date ? null : dateInvalid, bge, dockets, courts, canton, bgeFirst };
 }
 
 // "3c/aa" -> "3", "2a" -> "2"; null when the pinpoint has no lettered part.

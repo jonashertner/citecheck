@@ -173,3 +173,9 @@ test('deep check A19/A20: labels past Z, never one already used', async () => {
   assert.equal(freeLabels(['B.________'], ['A.________', 'AA.'])[0], 'C');
   assert.deepEqual([labelOf('AB.________'), labelOf('C.'), labelOf('[…]')], ['AB', 'C', '']);
 });
+
+test('deep check A10-A12: whole e-mail addresses beyond ASCII, a labelled four-digit patient number', () => {
+  const r = run(13);
+  assert.deepEqual(r.entries.filter((e) => e.kind === 'identifier').map((e) => [e.label, e.text]),
+    [['email', 'jürg.müller@example.ch'], ['email', 'anna@müller-treuhand.ch'], ['insured', '1234'], ['insured', '5678']]);
+});

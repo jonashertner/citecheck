@@ -111,6 +111,7 @@ function messages(f) {
         ? t('page_before', { pages: issue.written.join(', '), first: issue.range.first })
         : t('page_outside', { pages: issue.written.join(', '), first: issue.range.first, last: issue.range.last }));
     }
+    if (issue.kind === 'date_invalid') out.push(t('date_invalid', { written: issue.written }));
     if (issue.kind === 'date') out.push(t('date_differs', { written: formatDate(issue.written, { written: true }), listed: issue.listed.map((d) => formatDate(d)).join(', ') }));
     if (issue.kind === 'court') out.push(t('court_differs', { rows: issue.rows.map(rowText).join('; ') }));
   }

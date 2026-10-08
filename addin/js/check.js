@@ -147,6 +147,11 @@ function checkOne(index, parsed) {
     result.issues.push({ kind: 'court', named: [...parsed.courts], canton: parsed.canton, rows: all });
     return result;
   }
+  // A date the calendar does not have ("31. Februar 2013") is wrong whatever the list says.
+  if (parsed.dateInvalid) {
+    result.status = 'differs';
+    result.issues.push({ kind: 'date_invalid', written: parsed.dateInvalid });
+  }
   // 1 January is how the corpus writes a decision of which only the year is known.
   const dated = rows.filter((r) => r.date && !r.date.endsWith('-01-01'));
   if (parsed.date && !useBge && dated.length === rows.length && dated.every((r) => r.date !== parsed.date)) {
@@ -198,11 +203,25 @@ function collapse(text) {
   return { text: out, at };
 }
 
-// What the finder leaves after a reference and the draft still says of it: an Erwägung
-// written out ("Erwägung 99"), pages as "pp.", a date after the Erwägung.
-const SUFFIX = new RegExp(String.raw`^(?:,?[ \u00a0]*(?:Erwägung|Erwaegung|considérant|considerando)[ \u00a0]*\d+(?:\.\d+)*[a-z]{0,2})?` +
-  String.raw`(?:,?[ \u00a0]*(?:pp\.|pagg\.|SS\.)[ \u00a0]*\d{1,4}(?:[ \u00a0]*(?:ff?\.|ss?\.))?)?` +
-  String.raw`(?:,?[ \u00a0]+(?:vom|du|del|de|of)[ \u00a0]+(?:\d{1,2}(?:\.|er)?[ \u00a0]*[A-Za-zÀ-ÿ]+[ \u00a0]+\d{4}|\d{1,2}\.\d{1,2}\.\d{4}))?`);
+// What the finder leaves after a reference and the draft still says of it, in any order and
+// any capitals: an Erwägung ("Erwägung 99", "Consid. 99", "Considerando 99"), pages ("pp. 999",
+// "S. 118" before the Erwägung), a date ("vom 6. April 2013"); separated by ordinary,
+// non-breaking or narrow non-breaking spaces. One qualifier at a time, at most four.
+const GAP = String.raw`[\s  ]`;
+const QUALIFIER = new RegExp(String.raw`^,?${GAP}*(?:` +
+  String.raw`(?:E\.|Erw\.|Erwägung|Erwaegung|consid\.|consid|cons\.|considérant|considerando|c\.)${GAP}*\d+(?:\.\d+)*[a-z]{0,2}(?:\/[a-z]{1,2})?(?![\d.]\d)` +
+  String.raw`|(?:S\.|SS\.|p\.|pp\.|pag\.|pagg\.)${GAP}*\d{1,4}(?:${GAP}*(?:ff?\.|ss?\.))?(?!\d)` +
+  String.raw`|(?:vom|du|del|de|of)${GAP}+(?:\d{1,2}(?:\.|er)?${GAP}*[A-Za-zÀ-ÿ]+${GAP}+\d{4}|\d{1,2}\.${GAP}?\d{1,2}\.${GAP}?\d{4})(?!\d))`, 'i');
+
+function qualifiers(rest) {
+  let n = 0;
+  for (let i = 0; i < 4; i++) {
+    const m = QUALIFIER.exec(rest.slice(n));
+    if (!m) break;
+    n += m[0].length;
+  }
+  return n;
+}
 
 // paragraphs: [{text, where}] in reading order; `where` is opaque to this module.
 // Returns {findings, counts, paragraphs}; a finding carries its place in the
@@ -225,12 +244,12 @@ export function checkDocument(paragraphs, index) {
   };
   const found = findCitations(collapsed.map((c) => c.text)).map(back);
   for (const f of found) {
-    const m = SUFFIX.exec(texts[f.paragraph].slice(f.end));
-    if (!m || !m[0].trim()) continue;
-    const text = texts[f.paragraph].slice(f.start, f.end + m[0].length);
+    const n = qualifiers(texts[f.paragraph].slice(f.end));
+    if (!n) continue;
+    const text = texts[f.paragraph].slice(f.start, f.end + n);
     const parsed = parseReference(text);
     if (parsed.bge && f.parsed.bge ? parsed.bge.page !== f.parsed.bge.page : parsed.dockets[0] !== f.parsed.dockets[0]) continue;
-    Object.assign(f, { end: f.end + m[0].length, text, parsed });
+    Object.assign(f, { end: f.end + n, text, parsed });
   }
   // "BGE 129 III 320, 324": the page after a comma is the pinpoint page. Read here, not
   // in the finder, which stays the research client's; a number that cannot be a page

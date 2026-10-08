@@ -413,5 +413,17 @@
     }
    }
   ]
+ },
+ {
+  "name": "Deep check 2026-10-09 A10-A12: e-mail with letters beyond ASCII, a short patient number",
+  "parts": [
+   {
+    "text": "Mail an jürg.müller@example.ch oder anna@müller-treuhand.ch. Patienten-Nr. 1234, n° de patient 5678.",
+    "where": {
+     "part": "body",
+     "index": 0
+    }
+   }
+  ]
  }
 ]

@@ -174,3 +174,15 @@ test('Word test 2026-10-08: suffixes the finder leaves are read; runs of spaces 
   const dated = only('BGer 4A_747/2012 E. 3 vom 6. April 2013');
   assert.deepEqual([dated.text, dated.status, dated.issues.map((i) => i.kind)], ['BGer 4A_747/2012 E. 3 vom 6. April 2013', 'differs', ['date']]);
 });
+
+test('deep check C-series: qualifiers in any order and capitals, narrow spaces, impossible dates', () => {
+  const issue = (text) => { const f = only(text); return [f.text, f.status, f.issues.map((i) => i.kind)]; };
+  assert.deepEqual(issue('BGE 140 III 115 Consid. 9'), ['BGE 140 III 115 Consid. 9', 'differs', ['pinpoint']]);
+  assert.deepEqual(issue('BGE 140 III 115 Considerando 9'), ['BGE 140 III 115 Considerando 9', 'differs', ['pinpoint']]);
+  assert.deepEqual(issue('BGE 140 III 115 S. 118 E. 9'), ['BGE 140 III 115 S. 118 E. 9', 'differs', ['pinpoint']]);       // page before the Erwägung
+  assert.deepEqual(issue('BGE 140 III 115 E. 9'), ['BGE 140 III 115 E. 9', 'differs', ['pinpoint']]);
+  assert.deepEqual(issue('BGE 140 III 115 E. 2.3, pp. 999'), ['BGE 140 III 115 E. 2.3, pp. 999', 'differs', ['page']]);
+  assert.deepEqual(issue('Urteil 4A_747/2012 vom 31. Februar 2013'), ['4A_747/2012 vom 31. Februar 2013', 'differs', ['date_invalid']]);
+  assert.equal(only('BGE 140 III 115 E. 2.3 S. 118').status, 'found');                 // a control: all of it right
+  assert.equal(only('BGE 140 III 115. Die Sache ist erledigt.').text, 'BGE 140 III 115');   // a sentence after it is no qualifier
+});
