@@ -486,7 +486,7 @@ function renderRow(row) {
     line.append(el('p', null, describe(row).replace(/[^.]$/, '$&.')));
     if (row.variants.length) line.append(el('p', null, t('a_variants', { list: row.variants.join(', ') })));
   }
-  if (row.hidden) line.append(el('p', null, row.removed ? t('a_removed') : t('a_kept')));
+  if (row.hidden && !row.removed) line.append(el('p', null, t('a_kept')));          // "removed" is already its state
   li.append(line);
 
   if (open) {
@@ -596,6 +596,13 @@ function renderMargin() {
   $('a-margin').replaceChildren(...marks);
 }
 
+// The single lower-case words no list knows: named, not listed as entries, so the clerk can look.
+function unassessedNote(words) {
+  if (!words.length) return '';
+  const list = words.length > 8 ? words.slice(0, 8).join(', ') + ' …' : words.join(', ');
+  return ' ' + (words.length === 1 ? t('a_unassessed_one', { list }) : t('a_unassessed', { n: formatNumber(words.length), list }));
+}
+
 function renderWhy() {
   const x = state.result.explained;
   const dl = $('a-why');
@@ -609,6 +616,7 @@ function renderWhy() {
   add(t('why_case'), x.case.join(', '));
   add(t('why_public'), Object.entries(x.public).map(([k, n]) => t('lab_' + k) + ' ' + t('a_times', { n })).join(', '));
   add(t('why_common'), t('why_common_n', { words: formatNumber(x.common), numbers: formatNumber(x.numbers) }));
+  add(t('why_unassessed'), x.unassessed_words.join(', '));
   if (x.anonymized_roles.length) dl.append(el('dd', 'why-wide', t('why_anonymized_roles', { roles: x.anonymized_roles.map((r) => t('role_' + r)).join(', ') })));
 }
 
@@ -670,10 +678,9 @@ function draw() {
   const kept = decide.filter((row) => state.decide.get(row.key).ok).length;
   $('a-tally').hidden = !n;
   $('a-tally').textContent = n ? t('a_tally', { n: formatNumber(n), r: formatNumber(replace), k: formatNumber(kept), o: formatNumber(open) }) : '';
-  $('a-explained').textContent = (hiddenOnly ? t('a_hidden_note', { n: formatNumber(hiddenOnly) }) + ' ' : '') +
+  $('a-explained').textContent = (hiddenOnly === 1 ? t('a_hidden_note_one') + ' ' : hiddenOnly ? t('a_hidden_note', { n: formatNumber(hiddenOnly) }) + ' ' : '') +
     t('a_explained', { words: formatNumber(r.explained.common), numbers: formatNumber(r.explained.numbers) }) +
-    (r.explained.unassessed === 1 ? ' ' + t('a_unassessed_one')
-      : r.explained.unassessed ? ' ' + t('a_unassessed', { n: formatNumber(r.explained.unassessed) }) : '');
+    unassessedNote(r.explained.unassessed_words);
   renderWhy();
 
   renderGroup($('a-text'), t('a_in_text'), state.rows.filter((row) => !row.hidden));

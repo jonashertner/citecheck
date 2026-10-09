@@ -86,11 +86,11 @@
 
     <h2>Zitate prüfen</h2>
     <ol>
-      <li>Entwurf öffnen, <kbd>Entwurf prüfen</kbd>. Beim ersten Mal lädt das Add-in die Zitatliste (17 MB), danach nur, wenn sie sich geändert hat.</li>
+      <li>Entwurf öffnen, <kbd>Entwurf prüfen</kbd>. Beim ersten Mal lädt das Add-in die Zitatliste (16 MB), danach nur, wenn sie sich geändert hat.</li>
       <li>Jeder Verweis erhält eine Zeile: gefunden, weicht ab, nicht in der Liste, nicht geprüft. Anklicken zeigt die Begründung, <kbd>Im Entwurf zeigen</kbd> springt zur Stelle, <kbd>Entscheid öffnen</kbd> führt zum Entscheid auf opencaselaw.ch.</li>
       <li>Das Add-in ändert nichts am Text. Auf Wunsch setzt es einen Word-Kommentar an den Verweis.</li>
     </ol>
-    <img class="shot" src="docs-pane.png" alt="Das Fenster nach einer Prüfung: Zusammenfassung, Filter, eine Zeile pro Verweis.">
+    <img class="shot" src="docs-pane.png" alt="Das Fenster nach einer Prüfung von acht Verweisen: vier gefunden, zwei weichen ab (Erwägung, Datum), einer nicht in der Liste, einer nicht geprüft.">
 
     <h3>Was geprüft wird, und was nicht</h3>
     <p>Ob der Entscheid in der Liste von OpenCaseLaw steht (über eine Million Entscheide, Bundesgerichte und kantonale Gerichte, BGE seit Band 1) und ob er die zitierte Erwägung hat. Bei BGE zusätzlich, ob die zitierte Seite im Entscheid liegt. Nicht geprüft wird, ob der Entscheid die Aussage im Entwurf trägt.</p>
@@ -103,7 +103,7 @@
       <li>Ankreuzen, was ersetzt werden soll. Eine Person erhält einen Buchstaben, wo und wie immer ihr Name geschrieben ist (Müller, Müllers, MÜLLER); Buchstaben, die das Dokument schon verwendet, werden übersprungen.</li>
       <li><kbd>Anonymisierte Kopie erstellen</kbd> schreibt eine neue Datei: die angekreuzten Stellen ersetzt, Änderungen angenommen, Kommentare, ausgeblendeter Text und Dokumenteigenschaften entfernt. Die Kopie wird erneut geprüft und erst dann geöffnet. Ihre Fassung bleibt unverändert.</li>
     </ol>
-    <img class="shot" src="docs-pane-anon.png" alt="Das Fenster nach einer Prüfung: drei Stellen zum Ansehen (eine Adresse, eine AHV-Nummer, ein einmal übersehener Name), zwei davon mit ihrem Platzhalter angekreuzt, darunter die verborgenen Angaben, die in der Kopie wegfallen.">
+    <img class="shot" src="docs-pane-anon.png" alt="Das Fenster nach einer Prüfung: drei Angaben zum Ansehen (eine Adresse, eine AHV-Nummer im Aktenzeichen der Vorinstanz, ein übersehener Name, auch im Kommentar und im Dokumenttitel), zwei davon angekreuzt, darunter der Name der Verfasserin aus den Dokumenteigenschaften, der in der Kopie wegfällt.">
 
     <h3>Was gefunden wird</h3>
     <p>Namen, auch in gebeugter Form, in Grossbuchstaben und mit Initiale. AHV-Nummern (mit Prüfziffer), IBAN, Telefon- und Mobilnummern, E-Mail-Adressen, Profile in sozialen Medien, Adressen, Kontrollschilder, Parzellen, Geburtsdaten, Versicherten-, ZEMIS-, Ausweis- und Kontonummern. Dieselben Angaben von Ämtern, Versicherern, Firmen und Anwälten gelten als erklärt. Geprüft wird auch, was beim Lesen nicht zu sehen ist: Kommentare und ihre Verfasser, gelöschter Text in Änderungen, ausgeblendeter Text, Kopf- und Fusszeilen, Fuss- und Endnoten, Feldfunktionen, Bildbeschreibungen, Dokumenteigenschaften, Daten von Fachanwendungen im Dokument und der Dateiname.</p>
@@ -113,10 +113,11 @@
     <table class="figures">
       <tr><td>Kennnummer oder Adresse neben einem Platzhalter (AHV, IBAN, Mobilnummer, Adresse, Kontrollschild, Parzelle, Geburtsdatum)</td><td>100 %</td></tr>
       <tr><td>Ein an einer Stelle übersehener Name</td><td>96–97 %</td></tr>
-      <tr><td>Derselbe Name in gebeugter Form («Müllers»)</td><td>88 %</td></tr>
-      <tr><td>Stellen zum Ansehen pro Entscheid, Median (deutsch / französisch / italienisch)</td><td>6 / 4 / 6</td></tr>
+      <tr><td>Derselbe Name in gebeugter Form («Müllers»)</td><td>98 %</td></tr>
+      <tr><td>Eine ganz vergessene Person (alle Stellen eines Platzhalters)</td><td>91 %</td></tr>
+      <tr><td>Stellen zum Ansehen pro Entscheid, Median (deutsch / französisch / italienisch)</td><td>5 / 4 / 5,5</td></tr>
     </table>
-    <p>Wo ein Nachname auch ein gewöhnliches Wort ist (Frei, Sommer, Weiss), kann die Prüfung die beiden nicht immer unterscheiden. Nicht beurteilt wird, ob mehrere übliche Angaben zusammen (Alter, Ort, Beruf) eine Person erkennbar machen; Text in Bildern wird nicht gelesen. Die Prüfung entscheidet nichts: Was sie zeigt, beurteilen Sie. Alle Zahlen und Grenzen: <a href="https://github.com/jonashertner/citecheck/blob/main/docs/benchmark-anonymization.md">Messbericht</a>.</p>
+    <p>Wo ein Nachname auch ein gewöhnliches Wort ist (Frei, Sommer, Weiss), kann die Prüfung die beiden nicht immer unterscheiden. Nicht beurteilt wird, ob mehrere übliche Angaben zusammen (Alter, Ort, Beruf) eine Person erkennbar machen; Text in Bildern wird nicht gelesen. Die Prüfung erkennt nicht jede identifizierende Angabe und entscheidet nichts: Was sie zeigt, beurteilen Sie. Alle Zahlen und Grenzen: <a href="https://github.com/jonashertner/citecheck/blob/main/docs/benchmark-anonymization.md">Messbericht</a>.</p>
 
     <h2>Datenschutz</h2>
     <p>Das Dokument, die gefundenen Verweise und Stellen, die anonymisierte Kopie und alle Ergebnisse bleiben im Word-Fenster auf dem Gerät. Geladen werden nur die Dateien des Add-ins, die öffentliche Zitatliste und die öffentliche Wortliste, beide für alle gleich. Kein Sprachmodell, kein Konto. Der Browser in Word erzwingt das über eine Content-Security-Policy; die technische Beschreibung und wie man es selbst nachprüft: <a href="https://github.com/jonashertner/citecheck/blob/main/SECURITY.md">SECURITY.md</a>. Quellcode unter MIT-Lizenz: <a href="https://github.com/jonashertner/citecheck">github.com/jonashertner/citecheck</a>.</p>

@@ -11,7 +11,7 @@ workstation; the document is not sent anywhere.
   clerk tick what to replace, and writes an anonymized copy that it checks again
   before handing it out.
 
-<img src="docs/pane.png" width="360" alt="The task pane after a check: a summary, the draft's margin with one mark per reference, and the findings. Shown with the sample list.">
+<img src="docs/pane.png" width="360" alt="The task pane after a check of eight references: four found, two that differ (an Erwägung, a date), one not in the list, one not checked, with the margin marking each.">
 
 MIT licence. No account, no server of ours in the loop, no language model.
 About 3,000 lines of plain JavaScript, plus CSS and Python, with no
@@ -50,7 +50,7 @@ What it does not do, and says so in the pane:
 
 ## The anonymization check
 
-<img src="docs/pane-anon.png" width="360" alt="The anonymization mode after a check: three places to look at (an address, an AHV number, a name missed once and also standing in a comment), two of them ticked with their placeholders, and the hidden details the copy drops. Shown with a published ruling into which these slips were put back.">
+<img src="docs/pane-anon.png" width="360" alt="The anonymization mode after a check of an anonymized ruling: three things to look at (an address, an AHV number in the lower court's reference, a name missed in the text, a comment and the document title), two of them ticked, and an author's name in the document properties that the copy drops. Shown with a fictitious ruling.">
 
 One rule: **everything the file carries is either explained or shown.** A word
 or number is explained when it is
