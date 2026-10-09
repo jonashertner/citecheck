@@ -179,3 +179,12 @@ test('deep check A10-A12: whole e-mail addresses beyond ASCII, a labelled four-d
   assert.deepEqual(r.entries.filter((e) => e.kind === 'identifier').map((e) => [e.label, e.text]),
     [['email', 'jürg.müller@example.ch'], ['email', 'anna@müller-treuhand.ch'], ['insured', '1234'], ['insured', '5678']]);
 });
+
+test('acceptance 2026-10-09: the arrow keys go to the next place Word can show, and stop at the ends', async () => {
+  const { nextPlace } = await import('../addin/js/anon-pane.js');
+  const visible = [0, 2, 3];                                   // place 1 is in a comment: not shown in Word
+  assert.deepEqual([nextPlace(visible, -1, 1), nextPlace(visible, -1, -1)], [0, 3]);   // from no place: first, last
+  assert.deepEqual([nextPlace(visible, 0, 1), nextPlace(visible, 2, 1), nextPlace(visible, 3, 1)], [2, 3, 3]);
+  assert.deepEqual([nextPlace(visible, 3, -1), nextPlace(visible, 0, -1)], [2, 0]);
+  assert.equal(nextPlace([], -1, 1), -1);
+});

@@ -41,7 +41,7 @@ const state = {
   decide: new Map(),     // row key -> {replace, ok, placeholder}
   style: 'long',
   open: null,
-  step: 0,               // the place shown in the open row
+  step: -1,              // the place shown in the open row (-1: none chosen yet)
   compact: false,        // the header folded after a result
   busy: false,
   copy: null,            // {left, opened, url, name}
@@ -169,7 +169,9 @@ function restyle(style) {
 async function ensureVocabulary() {
   if (state.vocabulary) return true;
   try {
-    state.vocabulary = (await openVocabulary({ base: DATA_BASE })).vocabulary;
+    const opened = await openVocabulary({ base: DATA_BASE });
+    state.vocabulary = opened.vocabulary;
+    state.wordList = { manifest: opened.manifest, stale: opened.stale };
     return true;
   } catch {
     say(t('a_err_vocab'));
@@ -183,6 +185,7 @@ async function fileBytes() {
 }
 
 export const timings = () => state.timings;
+export const wordList = () => state.wordList;
 
 export async function runCheck() {
   say('');
@@ -352,15 +355,21 @@ function placeName(o) {
   return t('part_' + o.kind);
 }
 
-// The place in its sentence; ticked, with what it becomes beside it ("~~Hans Müller~~ A.________").
+// The place in its sentence; ticked, struck through with what it becomes beside it
+// ("~~Hans Müller~~ A.________"): <del> and <ins> with a real space and, for screen readers,
+// the words "ersetzt durch" between them.
 function contextOf(o, becomes) {
   const text = state.read.parts[o.part].text;
   // Cut at a word boundary, and only where the context really is cut.
   const before = o.start > 60 ? text.slice(o.start - 60, o.start).replace(/^\S*\s/, '') : text.slice(0, o.start);
   const after = o.end + 60 < text.length ? text.slice(o.end, o.end + 60).replace(/\s\S*$/, '') : text.slice(o.end);
   const p = el('p', 'ctx');
-  p.append((o.start > 60 ? '… ' : '') + before, el('mark', null, o.text));
-  if (becomes) p.append(el('span', 'becomes', becomes));
+  p.append((o.start > 60 ? '… ' : '') + before);
+  if (becomes) {
+    p.append(el('del', 'was', o.text), ' ', el('span', 'sr-only', t('a_replaced_by') + ' '), el('ins', 'becomes', becomes));
+  } else {
+    p.append(el('mark', null, o.text));
+  }
   p.append(after + (o.end + 60 < text.length ? ' …' : ''));
   return p;
 }
@@ -392,14 +401,25 @@ function stateOf(row) {
   return d.ok ? t('a_state_keep') : t('a_state_open');
 }
 
-// In an open row, the arrow keys go from place to place and show each in Word.
+// The place the arrow keys go to: among the places Word can show (the visible ones), the next or
+// previous one; from no place yet, Down is the first and Up the last; at either end it stays.
+export function nextPlace(visible, current, by) {
+  if (!visible.length) return -1;
+  const at = visible.indexOf(current);
+  if (at < 0) return by > 0 ? visible[0] : visible[visible.length - 1];
+  return visible[Math.max(0, Math.min(visible.length - 1, at + by))];
+}
+
+// In an open row, the arrow keys go from place to place: each is marked here, focused, and shown in Word.
 function step(row, by) {
   const visible = row.occurrences.map((o, i) => (o.visible ? i : -1)).filter((i) => i >= 0);
-  if (!visible.length) return;
-  const at = visible.indexOf(state.step);
-  state.step = visible[Math.max(0, Math.min(visible.length - 1, (at < 0 ? -1 : at) + by))];
+  const next = nextPlace(visible, state.step, by);
+  if (next < 0) return;
+  state.step = next;
   render();
-  show(row, state.step);
+  const button = document.querySelector(`[data-focus="place:${CSS.escape(row.key)}:${next}"]`);
+  if (button) button.focus({ preventScroll: false });
+  show(row, next);
 }
 
 function renderRow(row) {
@@ -423,7 +443,8 @@ function renderRow(row) {
   name.setAttribute('aria-expanded', String(state.open === row.key));
   name.append(el('span', 'a-forms', row.text));
   if (d.replace) name.append(el('span', 'a-becomes', [...new Set(row.occurrences.map((o, i) => placeAt(row, i)))].join(' ')));
-  name.addEventListener('click', () => { state.open = state.open === row.key ? null : row.key; state.step = 0; render(); if (state.open) show(row, 0); });
+  // Opening a row shows its places here; Word moves only when a place is chosen (click or arrow key).
+  name.addEventListener('click', () => { state.open = state.open === row.key ? null : row.key; state.step = -1; render(); });
   li.addEventListener('keydown', (e) => {
     if (state.open !== row.key || (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') || e.target.tagName === 'SELECT') return;
     e.preventDefault();
@@ -514,7 +535,7 @@ const placesKey = (row) => row.occurrences.map((o) => o.part + ':' + o.start).jo
 function placeChip(row, i) {
   const d = state.decide.get(row.key);
   const chip = el('select', 'a-chip a-chip-place');
-  chip.dataset.focus = 'place:' + row.key + ':' + i;
+  chip.dataset.focus = 'placechip:' + row.key + ':' + i;
   chip.setAttribute('aria-label', t('a_replace') + ': ' + row.occurrences[i].text + ', ' + placeName(row.occurrences[i]) + ', ' + t('a_by'));
   for (const value of [...choices(), BLANK]) {
     const opt = el('option', null, value === BLANK ? BLANK : labelOf(value));

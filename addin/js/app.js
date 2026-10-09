@@ -314,19 +314,27 @@ async function setMode(mode) {
 }
 
 function renderAbout() {
+  // Each check explains itself: what it reads, what it loads, and the list it compared with.
+  const anonMode = state.mode === 'anon';
+  const k = (key) => (anonMode ? 'a_' + key : key);
   $('about-title').textContent = t('about_title');
-  $('about-1').textContent = t('about_1');
-  $('about-2').textContent = t('about_2', { origin: location.origin });
-  $('about-3').textContent = t('about_3');
-  $('about-4').textContent = t('about_4');
-  $('about-list-label').textContent = t('about_list');
+  $('about-1').textContent = t(k('about_1'));
+  $('about-2').textContent = t(k('about_2'), { origin: location.origin });
+  $('about-3').textContent = t(k('about_3'));
+  $('about-4').textContent = t(k('about_4'));
+  const list = anonMode ? (anon.wordList() || {}) : { manifest: state.manifest, stale: state.listNote && state.listNote.key === 'list_stale' };
+  const m = list.manifest;
+  $('about-list-label').textContent = t(k('about_list'));
   $('about-sha-label').textContent = t('about_sha');
-  $('about-list').textContent = state.manifest ? state.manifest.file + ' (' + formatNumber(state.manifest.bytes) + ' B)' : '';
-  $('about-sha').textContent = state.manifest ? state.manifest.sha256 : '';
+  $('about-list').textContent = m
+    ? m.file + ' (' + formatNumber(m.bytes) + ' B), ' + formatDate(m.generated) + (list.stale ? '. ' + t('about_stale') : '')
+    : t('about_not_loaded');
+  $('about-sha').textContent = m ? m.sha256 : '–';
   // What the last check took, stage by stage, on this computer: measured, not promised.
   const ms = (x) => (x === undefined ? '–' : formatNumber(Math.round(x)));
   const tm = state.mode === 'anon' ? anon.timings() : state.timings;
   $('about-timings-label').textContent = t('about_timings');
+  $('about-timings-note').textContent = tm ? t('about_timings_note') : '';
   $('about-timings').textContent = tm
     ? t(state.mode === 'anon' ? 'timings_anon' : 'timings_cites', Object.fromEntries(['read', 'list', 'words', 'check', 'render'].map((k) => [k, ms(tm[k])])))
     : '–';
