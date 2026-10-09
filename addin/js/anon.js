@@ -26,11 +26,14 @@ const TITLE_NOUNS = new Set(['doktor', 'professor', 'professorin', 'präsident',
 const PARTICLES = new Set(['von', 'van', 'de', 'da', 'di', 'del', 'della', 'du', 'des', 'der', 'le', 'la', 'zur', 'zum']);
 const TITLES = new Set(['dr', 'prof', 'pd', 'lic', 'iur', 'med', 'phil', 'rer', 'pol', 'oec', 'mlaw', 'll']);
 const IDENTIFIERS = ['ahv', 'ahv_old', 'iban', 'insured', 'zemis', 'document_no', 'account',
-  'parcel', 'birthdate', 'birthdate_after', 'email', 'url', 'phone', 'plate', 'address'];
-const LABEL = { ahv_old: 'ahv', document_no: 'document', url: 'profile', birthdate_after: 'birthdate' };
+  'parcel', 'birthdate', 'birthdate_after', 'email', 'url', 'phone', 'plate', 'address', 'postcode'];
+const LABEL = { ahv_old: 'ahv', document_no: 'document', url: 'profile', birthdate_after: 'birthdate', postcode: 'address' };
 const VALUE_GROUP = new Set(['ahv_old', 'insured', 'zemis', 'document_no', 'account', 'parcel', 'birthdate', 'birthdate_after']);
 const RANK = { identifier: 0, word: 1, number: 1 };
 const LINKS = ['', 's', 'es', 'n', 'en', 'er', 'e'];
+// Outside German lines a long word still splits: a German compound quoted in French
+// ("Herkunftsvorstellung"); made-up names are shorter ("Equibelle").
+const LONG_COMPOUND = 13;
 
 // Each pattern three ways: g to walk the text, y to match at a position, plain to test.
 function compile(source, flags) {
@@ -124,6 +127,30 @@ export function compoundSplit(word, has, depth = 0) {
     }
   }
   return false;
+}
+
+// Whether the line at a position is German. Words are split into compounds ("Schneelast")
+// only in German: French, Italian and English do not close them up, and there a made-up
+// name splits too easily ("Equibelle": equi + belle). A line without function words takes
+// the document's language.
+function germanByLine(text) {
+  const starts = [0];
+  for (let i = text.indexOf('\n'); i !== -1; i = text.indexOf('\n', i + 1)) starts.push(i + 1);
+  const scores = starts.map((s, k) => {
+    const line = text.slice(s, k + 1 < starts.length ? starts[k + 1] - 1 : text.length);
+    let de = 0, other = 0;
+    for (const _ of all('lang_de', line)) de++;        // eslint-disable-line no-unused-vars
+    for (const _ of all('lang_other', line)) other++;  // eslint-disable-line no-unused-vars
+    return [de, other];
+  });
+  const de = scores.reduce((n, x) => n + x[0], 0);
+  const other = scores.reduce((n, x) => n + x[1], 0);
+  const german = scores.map(([d, o]) => (d || o ? d >= o : de >= other));
+  return (pos) => {
+    let lo = 0, hi = starts.length - 1;
+    while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (starts[mid] <= pos) lo = mid; else hi = mid - 1; }
+    return german[lo];
+  };
 }
 
 // ── the check ─────────────────────────────────────────────────────────────
@@ -245,8 +272,10 @@ function identifiers(t, taken, explained, pub) {
       // A landline in a letterhead or beside an office: "Postfach … Telefon … Fax …".
       if (name === 'phone' && !matchStart('mobile', value) && (isPublic(text, a) || matchStart('letterhead', text.slice(b, b + 40)))) { explained.add(a, b); bump(pub, 'phone'); continue; }
       if (name === 'plate' && !test('plate_context', text.slice(Math.max(0, a - 60), a))) continue;
+      // "68740 E.________": the postcode names the town the placeholder hides; "März 2025 A.________" is a year.
+      if (name === 'postcode' && test('date_before', text.slice(Math.max(0, a - 25), a))) continue;
       // "wohnhaft", "domicilié" right before: a person's, whatever office the clause names earlier.
-      if (name === 'address' && (value.includes('_') || (!test('residence_before', text.slice(Math.max(0, a - 40), a))
+      if ((name === 'address' || name === 'postcode') && (value.includes('_') || (!test('residence_before', text.slice(Math.max(0, a - 40), a))
         && (isPublic(text, a, 150) || matchStart('letterhead', text.slice(b, b + 40)))))) { explained.add(a, b); bump(pub, 'address'); continue; }
       taken.add(a, b);
       out.push({ kind: 'identifier', label, start: a, end: b, text: value });
@@ -397,6 +426,7 @@ export function check(parts, vocabulary) {
   for (const _ of all('initial', text)) initials++;      // eslint-disable-line no-unused-vars
 
   const shown = identifiers(t, taken, explained, pub);
+  const germanAt = germanByLine(text);
   const [byOffice, officeSurnames, anonymizedRoles, officeSpans, publicGiven] = roles(t, has);
   for (const [a, b] of officeSpans) explained.add(a, b);
   const officeWords = new Map();
@@ -421,7 +451,7 @@ export function check(parts, vocabulary) {
     const title = token.length > 1 && token.slice(1) === token.slice(1).toLowerCase();
     // After "Herr", "Frau", "Mr", "Mme" (initials between): a name, even one that is a word ("Herr Frei").
     const titled = test('title_before', text.slice(Math.max(0, a - 30), a)) && !TITLE_NOUNS.has(low) && !at('role', text, a);
-    if (!titled && (has(low) || (!listed && compoundSplit(low, has) && !nameWithS(low, has)))) {
+    if (!titled && (has(low) || (!listed && (germanAt(a) || low.length >= LONG_COMPOUND) && compoundSplit(low, has) && !nameWithS(low, has)))) {
       // "~saldo": ordinary in lower case; "Saldo" in mid-sentence is the name.
       if (!(title && has('~' + low) && !sentenceStart(text, a) && !test('det_before', text.slice(Math.max(0, a - 25), a)))) {
         counts.common++;
@@ -489,7 +519,7 @@ export function check(parts, vocabulary) {
       shown.push({ kind: 'word', label: null, start: a, end: b, text: token });
       continue;
     }
-    if (has(low) || compoundSplit(low, has)) { counts.common++; continue; }
+    if (has(low) || ((germanAt(a) || low.length >= LONG_COMPOUND) && compoundSplit(low, has))) { counts.common++; continue; }
     unknown.push([a, b, token]);
   }
   for (let i = 0; i < unknown.length;) {

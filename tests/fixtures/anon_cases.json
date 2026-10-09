@@ -529,5 +529,45 @@
     }
    }
   ]
+ },
+ {
+  "name": "Attestation 2026-10-09: a made-up company word in French text is no compound; a postcode before a placeholder names the town",
+  "parts": [
+   {
+    "text": "Die Schneelast ist in der Beschwerde.",
+    "where": {
+     "part": "body",
+     "index": 0
+    }
+   },
+   {
+    "text": "Elle et la Hofplan dans le dossier.",
+    "where": {
+     "part": "body",
+     "index": 1
+    }
+   },
+   {
+    "text": "68740 C.________",
+    "where": {
+     "part": "body",
+     "index": 2
+    }
+   },
+   {
+    "text": "Bahnhofstrasse 12, 8706 D.________",
+    "where": {
+     "part": "body",
+     "index": 3
+    }
+   },
+   {
+    "text": "Urteil vom 3. März 2018 E. 2 und ZAK 1990 S. 38.",
+    "where": {
+     "part": "body",
+     "index": 4
+    }
+   }
+  ]
  }
 ]

@@ -56,8 +56,10 @@ One rule: **everything the file carries is either explained or shown.** A word
 or number is explained when it is
 
 - **common**: a word found in many published rulings that is not a person's
-  name (the word list, below), or a number of a common shape (date, amount,
-  legal reference, docket, section, count);
+  name (the word list, below), in German also a compound of such words
+  ("Schneelast"; French, Italian and English do not close compounds up, and a
+  made-up name such as "Equibelle" would split), or a number of a common shape
+  (date, amount, legal reference, docket, section, count);
 - **made public by the ruling itself**: the bench, counsel and officials named
   with their office, authors and case names inside citations. Public is the
   person, not the surname: "Anna Müller" next to "Bundesrichter Hans Müller",
@@ -79,8 +81,8 @@ and "Anna Müller" is another. A name written alone ("Müller", "Müllers") goes
 the one person it fits; where it fits several, it gets an entry of its own and
 the clerk chooses the letter, for all places or place by place. A recognised identifier is shown with its
 label even when its parts are common words: AHV number (check digit verified),
-IBAN, phone number, e-mail address, social media profile, street address,
-number plate, land parcel, date of birth, insured-person or policy number,
+IBAN, phone number, e-mail address, social media profile, street address
+(also a postcode before a placeholder: "68740 E.________" names the town), number plate, land parcel, date of birth, insured-person or policy number,
 ZEMIS number, ID document number, account number. The same details of an
 office, an insurer, a company or counsel are explained.
 

@@ -219,3 +219,13 @@ test('the judge\'s full name without the title is the judge, given name included
   assert.deepEqual(r.people.concat(r.ambiguous).map((p) => [p.name, p.mentions.map((m) => [m.part, m.text])]),
     [['Hans Müller', [[1, 'Hans Müller'], [2, 'Hans Müller']]]]);
 });
+
+test('compounds only in German; a postcode before a placeholder is an address, a year before "S." or "E." is not', () => {
+  const r = run(18);
+  const at = (part) => r.entries.filter((e) => e.occurrences.some((o) => o.part === part)).map((e) => [e.label || e.kind, e.text]);
+  assert.deepEqual(at(0), []);                                                     // "Schneelast": schnee + last, German
+  assert.deepEqual(at(1), [['word', 'Hofplan']]);                                  // splits too, but the line is French
+  assert.deepEqual(at(2), [['address', '68740']]);
+  assert.deepEqual(at(3).filter(([l]) => l === 'address').map(([, t]) => t).sort(), ['8706', 'Bahnhofstrasse 12'].sort());
+  assert.deepEqual(at(4).filter(([l]) => l !== 'word'), []);                       // "2018 E. 2", "1990 S. 38": no address
+});

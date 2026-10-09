@@ -45,11 +45,14 @@ TITLES = {"dr", "prof", "pd", "lic", "iur", "med", "phil", "rer", "pol", "oec", 
 # Identifier detectors in the order they claim text; a later match that overlaps
 # an earlier claim is dropped.
 IDENTIFIERS = ("ahv", "ahv_old", "iban", "insured", "zemis", "document_no", "account",
-               "parcel", "birthdate", "birthdate_after", "email", "url", "phone", "plate", "address")
-LABEL = {"ahv_old": "ahv", "document_no": "document", "url": "profile", "birthdate_after": "birthdate"}
+               "parcel", "birthdate", "birthdate_after", "email", "url", "phone", "plate", "address", "postcode")
+LABEL = {"ahv_old": "ahv", "document_no": "document", "url": "profile", "birthdate_after": "birthdate", "postcode": "address"}
 # Detectors whose pattern names its value in group 1 ("Parzelle Nr. 1234": the number).
 VALUE_GROUP = {"ahv_old", "insured", "zemis", "document_no", "account", "parcel", "birthdate", "birthdate_after"}
 RANK = {"identifier": 0, "word": 1, "number": 1}
+# Outside German lines a long word still splits: a German compound quoted in French
+# ("Herkunftsvorstellung"); made-up names are shorter ("Equibelle").
+LONG_COMPOUND = 13
 
 
 def load_patterns(path: Path = PATTERN_FILE) -> dict[str, re.Pattern]:
@@ -287,6 +290,21 @@ def compound_split(word: str, has, depth: int = 0) -> bool:
     return False
 
 
+def _german_by_line(text: str):
+    """Whether the line at a position is German. Words are split into compounds ("Schneelast")
+    only in German: French, Italian and English do not close them up, and there a made-up
+    name splits too easily ("Equibelle": equi + belle). A line without function words takes
+    the document's language."""
+    starts = [0] + [m.end() for m in re.finditer("\n", text)]
+    scores = []
+    for k, s in enumerate(starts):
+        line = text[s:starts[k + 1] - 1 if k + 1 < len(starts) else len(text)]
+        scores.append((sum(1 for _ in P["lang_de"].finditer(line)), sum(1 for _ in P["lang_other"].finditer(line))))
+    de, other = sum(x[0] for x in scores), sum(x[1] for x in scores)
+    german = [d >= o if (d or o) else de >= other for d, o in scores]
+    return lambda pos: german[bisect.bisect_right(starts, pos) - 1]
+
+
 def _identifiers(t: _Text, taken: _Spans, explained: _Spans, public: dict) -> list[dict]:
     text = t.text
     out = []
@@ -325,7 +343,10 @@ def _identifiers(t: _Text, taken: _Spans, explained: _Spans, public: dict) -> li
                 continue
             if name == "plate" and not P["plate_context"].search(text[max(0, a - 60):a]):
                 continue
-            if name == "address":
+            # "68740 E.________": the postcode names the town the placeholder hides; "März 2025 A.________" is a year.
+            if name == "postcode" and P["date_before"].search(text[max(0, a - 25):a]):
+                continue
+            if name in ("address", "postcode"):
                 # "wohnhaft", "domicilié" right before: a person's, whatever office the clause names earlier.
                 resides = P["residence_before"].search(text[max(0, a - 40):a])
                 if "_" in value or (not resides and (_public(text, a, b, 150) or P["letterhead"].match(text[b:b + 40]))):
@@ -480,6 +501,7 @@ def check(parts: list[dict], vocabulary) -> dict:
     initials = sum(1 for _ in P["initial"].finditer(text))
 
     shown = _identifiers(t, taken, explained, public)
+    german_at = _german_by_line(text)
     by_office, office_surnames, anonymized_roles, office_spans, public_given = _roles(t, vocabulary)
     for a, b in office_spans:
         explained.add(a, b)
@@ -508,7 +530,7 @@ def check(parts: list[dict], vocabulary) -> dict:
         titled = (bool(P["title_before"].search(text[max(0, a - 30):a])) and low not in TITLE_NOUNS
                   and not P["role"].match(text, a))
         title = len(token) > 1 and token[1:] == token[1:].lower()
-        if not titled and (low in vocabulary or (not listed and compound_split(low, vocabulary.__contains__) and not _name_with_s(low, vocabulary))):
+        if not titled and (low in vocabulary or (not listed and (german_at(a) or len(low) >= LONG_COMPOUND) and compound_split(low, vocabulary.__contains__) and not _name_with_s(low, vocabulary))):
             # "~saldo": ordinary in lower case; "Saldo" in mid-sentence is the name.
             if not (title and "~" + low in vocabulary and not _sentence_start(text, a)
                     and not P["det_before"].search(text[max(0, a - 25):a])):
@@ -580,7 +602,7 @@ def check(parts: list[dict], vocabulary) -> dict:
         if stems and ((k in stems and low not in vocabulary) or (k.endswith("s") and k[:-1] in stems and low[:-1] not in vocabulary)):
             shown.append({"kind": "word", "label": None, "start": a, "end": b, "text": token})
             continue
-        if low in vocabulary or compound_split(low, vocabulary.__contains__):
+        if low in vocabulary or ((german_at(a) or len(low) >= LONG_COMPOUND) and compound_split(low, vocabulary.__contains__)):
             counts["common"] += 1
             continue
         unknown.append((a, b, token))
