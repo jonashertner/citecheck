@@ -202,3 +202,10 @@ test('live retest A14: a name in lower case only is a person; a single unknown w
   assert.deepEqual(judge.explained.court, ['Hans', 'Müller']);
   assert.deepEqual(judge.people.map((p) => [p.name, p.mentions.map((m) => m.text)]), [['anna müller', ['anna müller']]]);
 });
+
+test('an AHV number glued to a cantonal reference ("KK.756…") is shown; inside a longer dotted number it is not one', () => {
+  const r = run(16);
+  assert.deepEqual(r.entries.filter((e) => e.label === 'ahv').map((e) => e.occurrences.map((o) => [o.part, o.text])),
+    [[[0, '756.3047.5009.62'], [1, '7563047500962']]]);                    // one number, two spellings: one entry
+  assert.ok(!r.entries.some((e) => e.label === 'ahv' && e.occurrences.some((o) => o.part === 2)));
+});

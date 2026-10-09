@@ -477,5 +477,31 @@
     }
    }
   ]
+ },
+ {
+  "name": "Mail to BGer 2026-10-09: an AHV number glued to a cantonal reference (KK.756…), not inside a longer dotted number",
+  "parts": [
+   {
+    "text": "Entscheid des Sozialversicherungsgerichts vom 3. März 2025 (IV.2024.00273, KK.756.3047.5009.62).",
+    "where": {
+     "part": "body",
+     "index": 0
+    }
+   },
+   {
+    "text": "Nr. KK.7563047500962",
+    "where": {
+     "part": "body",
+     "index": 1
+    }
+   },
+   {
+    "text": "Ziffer 1.756.3047.5009.62",
+    "where": {
+     "part": "body",
+     "index": 2
+    }
+   }
+  ]
  }
 ]
