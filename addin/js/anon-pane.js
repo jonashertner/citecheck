@@ -663,14 +663,17 @@ function draw() {
   const verdict = !n ? t('a_clean') : !r.anonymized ? (n === 1 ? t('a_raw_one') : t('a_raw', { n: formatNumber(n) }))
     : n === 1 ? t('a_attention_one') : t('a_attention', { n: formatNumber(n) });
   $('a-verdict').textContent = verdict;
-  // Green only when the check shows nothing: a decision made is not a file verified.
-  $('a-verdict').className = 'verdict ' + (n ? 'verdict-attention' : 'verdict-clean');
+  // Green only when the check shows nothing and every word was assessed: a decision
+  // made is not a file verified, and a word nothing knows is not a word explained.
+  $('a-verdict').className = 'verdict ' + (n ? 'verdict-attention' : r.explained.unassessed ? '' : 'verdict-clean');
   const replace = decide.filter((row) => state.decide.get(row.key).replace).length;
   const kept = decide.filter((row) => state.decide.get(row.key).ok).length;
   $('a-tally').hidden = !n;
   $('a-tally').textContent = n ? t('a_tally', { n: formatNumber(n), r: formatNumber(replace), k: formatNumber(kept), o: formatNumber(open) }) : '';
   $('a-explained').textContent = (hiddenOnly ? t('a_hidden_note', { n: formatNumber(hiddenOnly) }) + ' ' : '') +
-    t('a_explained', { words: formatNumber(r.explained.common), numbers: formatNumber(r.explained.numbers) });
+    t('a_explained', { words: formatNumber(r.explained.common), numbers: formatNumber(r.explained.numbers) }) +
+    (r.explained.unassessed === 1 ? ' ' + t('a_unassessed_one')
+      : r.explained.unassessed ? ' ' + t('a_unassessed', { n: formatNumber(r.explained.unassessed) }) : '');
   renderWhy();
 
   renderGroup($('a-text'), t('a_in_text'), state.rows.filter((row) => !row.hidden));

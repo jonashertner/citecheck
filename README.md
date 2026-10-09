@@ -66,6 +66,13 @@ or number is explained when it is
   anonymizes itself (counsel written as B.________) is not explained;
 - **a placeholder**: A.________, [...], X.
 
+One exception, stated in the pane after every check: a single lower-case word
+that the word list does not know and that is no compound of known words is
+counted, not shown. Two or more such words in a row are shown, so a name
+written all in lower case ("hans müller") is one more person. On 2,000 held-out
+rulings two thirds have no such single word (median 0, 90th percentile 4); the
+rest are mostly typos and foreign words.
+
 Everything else is shown, grouped by person, not by word: "Hans Müller",
 "HANS MÜLLER", "H. Müller" and "Hans" are one entry with every place it stands,
 and "Anna Müller" is another. A name written alone ("Müller", "Müllers") goes to

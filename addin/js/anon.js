@@ -402,7 +402,7 @@ export function check(parts, vocabulary) {
   const officeWords = new Map();
   for (const [k, ws] of Object.entries(officeSurnames)) for (const w of ws) officeWords.set(w.toLowerCase(), k);   // the later office wins, as in Python
 
-  const counts = { common: 0, numbers: 0 };
+  const counts = { common: 0, numbers: 0, unassessed: 0 };
   const inflected = [];                              // common words ending in s/es: "Müllers"
   const lowerCase = [];                            // words in lower case, judged once the names are known
   const deferred = [];                             // a public surname, judged once every Müller is known
@@ -465,15 +465,30 @@ export function check(parts, vocabulary) {
     }
   }
 
-  // A name the document shows written in lower case ("müller", "müllers"), where that is no word ("frei" is).
-  for (const [a, b, token] of stems.size ? lowerCase : []) {
-    const low = token.toLowerCase();
-    if (has(low) && (!low.endsWith('s') || has(low.slice(0, -1)))) continue;      // a word: the common case, before folding
+  // Words in lower case. A word of the list, or a compound of its words, is explained. A name the
+  // document shows capitalised is shown in lower case too ("müller"), unless that is a word
+  // ("frei"). Two or more unknown words side by side are shown ("hans müller"): in published
+  // rulings such pairs are almost only names and foreign phrases. A single unknown word is not
+  // shown but counted, and the summary says how many.
+  const unknown = [];
+  for (const [a, b, token] of lowerCase) {
     if (taken.overlaps(a, b) || explained.overlaps(a, b)) continue;
+    const low = token.toLowerCase();
+    if (has(low) && (!low.endsWith('s') || has(low.slice(0, -1)))) { counts.common++; continue; }   // a word: the common case, before folding
     const k = fold(token);
-    if ((stems.has(k) && !has(low)) || (k.endsWith('s') && stems.has(k.slice(0, -1)) && !has(low.slice(0, -1)))) {
+    if (stems.size && ((stems.has(k) && !has(low)) || (k.endsWith('s') && stems.has(k.slice(0, -1)) && !has(low.slice(0, -1))))) {
       shown.push({ kind: 'word', label: null, start: a, end: b, text: token });
+      continue;
     }
+    if (has(low) || compoundSplit(low, has)) { counts.common++; continue; }
+    unknown.push([a, b, token]);
+  }
+  for (let i = 0; i < unknown.length;) {
+    let j = i;
+    while (j + 1 < unknown.length && LINK.test(text.slice(unknown[j][1], unknown[j + 1][0]) || 'x')) j++;
+    if (j > i) for (const [x, y, w] of unknown.slice(i, j + 1)) shown.push({ kind: 'word', label: null, start: x, end: y, text: w });
+    else counts.unassessed++;
+    i = j + 1;
   }
 
   for (const m of all('code', text)) {
@@ -546,7 +561,7 @@ function assemble(t, shown, placeholders, initials, counts, named, pub, anonymiz
     people: found[0],
     ambiguous: found[1],
     explained: {
-      common: counts.common, numbers: counts.numbers,
+      common: counts.common, numbers: counts.numbers, unassessed: counts.unassessed,
       court: sortedNames(named.court), counsel: sortedNames(named.counsel), official: sortedNames(named.official),
       author: sortedNames(named.author), case: sortedNames(named.case),
       public: Object.fromEntries(Object.entries(pub).sort((x, y) => byCodePoint(x[0], y[0]))),

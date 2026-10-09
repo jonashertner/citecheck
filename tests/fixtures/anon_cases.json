@@ -425,5 +425,57 @@
     }
    }
   ]
+ },
+ {
+  "name": "Live retest 2026-10-09 A14: a name in lower case only, a single unknown word, prose, the title-case control, NFD",
+  "parts": [
+   {
+    "text": "hans müller ist in der Beschwerde.",
+    "where": {
+     "part": "body",
+     "index": 0
+    }
+   },
+   {
+    "text": "Die Beschwerde ist ernst.",
+    "where": {
+     "part": "body",
+     "index": 1
+    }
+   },
+   {
+    "text": "Hans Müller ist in der Beschwerde.",
+    "where": {
+     "part": "body",
+     "index": 2
+    }
+   },
+   {
+    "text": "hans müller ist in der Beschwerde.",
+    "where": {
+     "part": "body",
+     "index": 3
+    }
+   },
+   {
+    "text": "die Beschwerde ist in den Akten.",
+    "where": {
+     "part": "body",
+     "index": 4
+    }
+   }
+  ]
+ },
+ {
+  "name": "Live retest 2026-10-09 A14 with N1: a lower-case name beside a judge with the same surname",
+  "parts": [
+   {
+    "text": "Bundesrichter Hans Müller ist im Gericht. Die Beschwerdeführerin ist anna müller.",
+    "where": {
+     "part": "body",
+     "index": 0
+    }
+   }
+  ]
  }
 ]

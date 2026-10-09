@@ -485,7 +485,7 @@ def check(parts: list[dict], vocabulary) -> dict:
         explained.add(a, b)
     office_words = {w.lower(): k for k, ws in office_surnames.items() for w in ws}
 
-    counts = {"common": 0, "numbers": 0}
+    counts = {"common": 0, "numbers": 0, "unassessed": 0}
     inflected = []                                   # common words ending in s/es: "Müllers"
     lower_case = []                                  # words in lower case, judged once the names are known
     deferred = []                                    # a public surname, judged once every Müller is known
@@ -552,16 +552,37 @@ def check(parts: list[dict], vocabulary) -> dict:
             counts["common"] -= 1
             shown.append({"kind": "word", "label": None, "start": a, "end": b, "text": token})
 
-    # A name the document shows written in lower case ("müller", "müllers"), where that is no word ("frei" is).
-    for a, b, token in (lower_case if stems else []):
-        low = token.lower()
-        if low in vocabulary and (not low.endswith("s") or low[:-1] in vocabulary):
-            continue                                 # a word: the common case, before folding
+    # Words in lower case. A word of the list, or a compound of its words, is explained. A name the
+    # document shows capitalised is shown in lower case too ("müller"), unless that is a word
+    # ("frei"). Two or more unknown words side by side are shown ("hans müller"): in published
+    # rulings such pairs are almost only names and foreign phrases. A single unknown word is not
+    # shown but counted, and the summary says how many.
+    unknown = []
+    for a, b, token in lower_case:
         if taken.overlaps(a, b) or explained.overlaps(a, b):
             continue
+        low = token.lower()
+        if low in vocabulary and (not low.endswith("s") or low[:-1] in vocabulary):
+            counts["common"] += 1                    # a word: the common case, before folding
+            continue
         k = fold(token)
-        if (k in stems and low not in vocabulary) or (k.endswith("s") and k[:-1] in stems and low[:-1] not in vocabulary):
+        if stems and ((k in stems and low not in vocabulary) or (k.endswith("s") and k[:-1] in stems and low[:-1] not in vocabulary)):
             shown.append({"kind": "word", "label": None, "start": a, "end": b, "text": token})
+            continue
+        if low in vocabulary or compound_split(low, vocabulary.__contains__):
+            counts["common"] += 1
+            continue
+        unknown.append((a, b, token))
+    i = 0
+    while i < len(unknown):
+        j = i
+        while j + 1 < len(unknown) and _LINK.fullmatch(text[unknown[j][1]:unknown[j + 1][0]] or "x"):
+            j += 1
+        if j > i:
+            shown.extend({"kind": "word", "label": None, "start": x, "end": y, "text": w} for x, y, w in unknown[i:j + 1])
+        else:
+            counts["unassessed"] += 1
+        i = j + 1
 
     for m in P["code"].finditer(text):
         a, b = m.start(), m.end()
@@ -627,7 +648,7 @@ def _assemble(t, shown, placeholders, initials, counts, named, public, anonymize
         "people": people,
         "ambiguous": ambiguous,
         "explained": {
-            "common": counts["common"], "numbers": counts["numbers"],
+            "common": counts["common"], "numbers": counts["numbers"], "unassessed": counts["unassessed"],
             **{k: sorted(v) for k, v in named.items()},
             "public": dict(sorted(public.items())),
             "anonymized_roles": sorted(anonymized_roles),

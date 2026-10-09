@@ -188,3 +188,17 @@ test('acceptance 2026-10-09: the arrow keys go to the next place Word can show, 
   assert.deepEqual([nextPlace(visible, 3, -1), nextPlace(visible, 0, -1)], [2, 0]);
   assert.equal(nextPlace([], -1, 1), -1);
 });
+
+test('live retest A14: a name in lower case only is a person; a single unknown word is counted, not shown', () => {
+  const r = run(14);
+  // "hans müller", "Hans Müller" and the decomposed umlaut are one person, each place as written
+  assert.deepEqual(r.people.map((p) => [p.name, p.mentions.map((m) => [m.part, m.text, m.start, m.end])]),
+    [['hans müller', [[0, 'hans müller', 0, 11], [2, 'Hans Müller', 0, 11], [3, 'hans müller', 0, 12]]]]);
+  assert.deepEqual(r.ambiguous, []);
+  // "ernst" alone: not shown, not explained, counted; prose in lower case is common words
+  assert.ok(!r.entries.some((e) => e.occurrences.some((o) => o.part === 1 || o.part === 4)));
+  assert.equal(r.explained.unassessed, 1);
+  const judge = run(15);
+  assert.deepEqual(judge.explained.court, ['Hans', 'Müller']);
+  assert.deepEqual(judge.people.map((p) => [p.name, p.mentions.map((m) => m.text)]), [['anna müller', ['anna müller']]]);
+});
