@@ -503,5 +503,31 @@
     }
    }
   ]
+ },
+ {
+  "name": "Judge's full name without the title: the judge, whole; after a party word: a person, whole",
+  "parts": [
+   {
+    "text": "Bundesrichter Hans Müller ist im Gericht.",
+    "where": {
+     "part": "body",
+     "index": 0
+    }
+   },
+   {
+    "text": "Hans Müller ist in der Beschwerde.",
+    "where": {
+     "part": "body",
+     "index": 1
+    }
+   },
+   {
+    "text": "Die Beschwerdeführerin Hans Müller ist in der Beschwerde.",
+    "where": {
+     "part": "body",
+     "index": 2
+    }
+   }
+  ]
  }
 ]

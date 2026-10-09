@@ -485,7 +485,7 @@ def check(parts: list[dict], vocabulary) -> dict:
         explained.add(a, b)
     office_words = {w.lower(): k for k, ws in office_surnames.items() for w in ws}
 
-    counts = {"common": 0, "numbers": 0, "unassessed": 0}
+    counts = {"common": 0, "numbers": 0, "unassessed": 0, "unassessed_words": set()}
     inflected = []                                   # common words ending in s/es: "Müllers"
     lower_case = []                                  # words in lower case, judged once the names are known
     deferred = []                                    # a public surname, judged once every Müller is known
@@ -526,7 +526,7 @@ def check(parts: list[dict], vocabulary) -> dict:
             first, names = _names_before(text, a, vocabulary)
             if not (P["party_before"].search(text[max(0, first - 40):first])
                     or any(not _same_given(n, public_given.get(low, set())) for n in names)):
-                deferred.append((a, b, token, low))
+                deferred.append((a, b, token, low, first))
                 continue
             contested.add(low)
         after = text[b:b + 90]
@@ -538,11 +538,22 @@ def check(parts: list[dict], vocabulary) -> dict:
             continue
         shown.append({"kind": "word", "label": None, "start": a, "end": b, "text": token})
 
-    for a, b, token, low in deferred:
+    # A public surname stays public with the given names written before it: "Hans Müller" beside
+    # "Bundesrichter Hans Müller" is the judge, not a "Hans" to replace in front of the judge's surname.
+    given_spans = []
+    for a, b, token, low, first in deferred:
         if low in contested:
             shown.append({"kind": "word", "label": None, "start": a, "end": b, "text": token})
-        else:
-            named[office_words[low]].add(token)
+            continue
+        named[office_words[low]].add(token)
+        if first < a:
+            given_spans.append((first, a, office_words[low]))
+    for i in range(len(shown) - 1, -1, -1) if given_spans else ():
+        x = shown[i]
+        span = x["kind"] == "word" and next((sp for sp in given_spans if sp[0] <= x["start"] and x["end"] <= sp[1]), None)
+        if span:
+            named[span[2]].add(x["text"])
+            del shown[i]
 
     # A common word whose stem is shown here is that name inflected ("Müllers" beside "Müller").
     stems = {fold(x["text"]) for x in shown if x["kind"] == "word"}
@@ -582,6 +593,7 @@ def check(parts: list[dict], vocabulary) -> dict:
             shown.extend({"kind": "word", "label": None, "start": x, "end": y, "text": w} for x, y, w in unknown[i:j + 1])
         else:
             counts["unassessed"] += 1
+            counts["unassessed_words"].add(unknown[i][2])
         i = j + 1
 
     for m in P["code"].finditer(text):
@@ -648,7 +660,7 @@ def _assemble(t, shown, placeholders, initials, counts, named, public, anonymize
         "people": people,
         "ambiguous": ambiguous,
         "explained": {
-            "common": counts["common"], "numbers": counts["numbers"], "unassessed": counts["unassessed"],
+            "common": counts["common"], "numbers": counts["numbers"], "unassessed": counts["unassessed"], "unassessed_words": sorted(counts["unassessed_words"]),
             **{k: sorted(v) for k, v in named.items()},
             "public": dict(sorted(public.items())),
             "anonymized_roles": sorted(anonymized_roles),

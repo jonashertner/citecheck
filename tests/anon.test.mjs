@@ -198,6 +198,7 @@ test('live retest A14: a name in lower case only is a person; a single unknown w
   // "ernst" alone: not shown, not explained, counted; prose in lower case is common words
   assert.ok(!r.entries.some((e) => e.occurrences.some((o) => o.part === 1 || o.part === 4)));
   assert.equal(r.explained.unassessed, 1);
+  assert.deepEqual(r.explained.unassessed_words, ['ernst']);                   // named in the summary, not listed
   const judge = run(15);
   assert.deepEqual(judge.explained.court, ['Hans', 'Müller']);
   assert.deepEqual(judge.people.map((p) => [p.name, p.mentions.map((m) => m.text)]), [['anna müller', ['anna müller']]]);
@@ -208,4 +209,13 @@ test('an AHV number glued to a cantonal reference ("KK.756…") is shown; inside
   assert.deepEqual(r.entries.filter((e) => e.label === 'ahv').map((e) => e.occurrences.map((o) => [o.part, o.text])),
     [[[0, '756.3047.5009.62'], [1, '7563047500962']]]);                    // one number, two spellings: one entry
   assert.ok(!r.entries.some((e) => e.label === 'ahv' && e.occurrences.some((o) => o.part === 2)));
+});
+
+test('the judge\'s full name without the title is the judge, given name included; after a party word it is a person, whole', () => {
+  const judgeOnly = check(cases[17].parts.slice(0, 2), vocabulary);
+  assert.deepEqual([judgeOnly.people, judgeOnly.ambiguous], [[], []]);            // no "Hans" left alone before the judge's surname
+  assert.deepEqual(judgeOnly.explained.court, ['Hans', 'Müller']);
+  const r = run(17);                                                               // a party bears the name too: either may be meant
+  assert.deepEqual(r.people.concat(r.ambiguous).map((p) => [p.name, p.mentions.map((m) => [m.part, m.text])]),
+    [['Hans Müller', [[1, 'Hans Müller'], [2, 'Hans Müller']]]]);
 });

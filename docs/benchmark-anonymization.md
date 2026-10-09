@@ -9,9 +9,9 @@ figures only, no value from any ruling.
 
 | Language | Rulings | Entries shown: median | p90 | p99 | none at all | words / numbers / identifiers |
 |---|---|---|---|---|---|---|
-| de | 3,274 | 5 | 16 | 47 | 6% | 23,223 / 821 / 883 |
-| fr | 1,972 | 4 | 12 | 32 | 13% | 9,646 / 874 / 243 |
-| it | 478 | 6 | 19 | 44 | 6% | 3,688 / 297 / 142 |
+| de | 3,274 | 5 | 16 | 47 | 6% | 22,869 / 821 / 883 |
+| fr | 1,972 | 4 | 12 | 32 | 13% | 9,619 / 874 / 243 |
+| it | 478 | 5.5 | 19 | 44 | 6% | 3,665 / 297 / 142 |
 
 Time: 41 ms per ruling (Python, one core).
 

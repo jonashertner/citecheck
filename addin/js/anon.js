@@ -402,7 +402,7 @@ export function check(parts, vocabulary) {
   const officeWords = new Map();
   for (const [k, ws] of Object.entries(officeSurnames)) for (const w of ws) officeWords.set(w.toLowerCase(), k);   // the later office wins, as in Python
 
-  const counts = { common: 0, numbers: 0, unassessed: 0 };
+  const counts = { common: 0, numbers: 0, unassessed: 0, unassessedWords: new Set() };
   const inflected = [];                              // common words ending in s/es: "Müllers"
   const lowerCase = [];                            // words in lower case, judged once the names are known
   const deferred = [];                             // a public surname, judged once every Müller is known
@@ -439,7 +439,7 @@ export function check(parts, vocabulary) {
       const [first, names] = namesBefore(text, a, has);
       const pub = publicGiven.get(low) || new Set();
       if (!(test('party_before', text.slice(Math.max(0, first - 40), first)) || names.some((n) => !sameGiven(n, pub)))) {
-        deferred.push([a, b, token, low]);
+        deferred.push([a, b, token, low, first]);
         continue;
       }
       contested.add(low);
@@ -450,9 +450,18 @@ export function check(parts, vocabulary) {
     shown.push({ kind: 'word', label: null, start: a, end: b, text: token });
   }
 
-  for (const [a, b, token, low] of deferred) {
-    if (contested.has(low)) shown.push({ kind: 'word', label: null, start: a, end: b, text: token });
-    else named[officeWords.get(low)].add(token);
+  // A public surname stays public with the given names written before it: "Hans Müller" beside
+  // "Bundesrichter Hans Müller" is the judge, not a "Hans" to replace in front of the judge's surname.
+  const givenSpans = [];
+  for (const [a, b, token, low, first] of deferred) {
+    if (contested.has(low)) { shown.push({ kind: 'word', label: null, start: a, end: b, text: token }); continue; }
+    named[officeWords.get(low)].add(token);
+    if (first < a) givenSpans.push([first, a, officeWords.get(low)]);
+  }
+  for (let i = shown.length - 1; givenSpans.length && i >= 0; i--) {
+    const x = shown[i];
+    const span = x.kind === 'word' && givenSpans.find(([f, a]) => f <= x.start && x.end <= a);
+    if (span) { named[span[2]].add(x.text); shown.splice(i, 1); }
   }
 
   // A common word whose stem is shown here is that name inflected ("Müllers" beside "Müller").
@@ -487,7 +496,7 @@ export function check(parts, vocabulary) {
     let j = i;
     while (j + 1 < unknown.length && LINK.test(text.slice(unknown[j][1], unknown[j + 1][0]) || 'x')) j++;
     if (j > i) for (const [x, y, w] of unknown.slice(i, j + 1)) shown.push({ kind: 'word', label: null, start: x, end: y, text: w });
-    else counts.unassessed++;
+    else { counts.unassessed++; counts.unassessedWords.add(unknown[i][2]); }
     i = j + 1;
   }
 
@@ -562,6 +571,7 @@ function assemble(t, shown, placeholders, initials, counts, named, pub, anonymiz
     ambiguous: found[1],
     explained: {
       common: counts.common, numbers: counts.numbers, unassessed: counts.unassessed,
+      unassessed_words: [...counts.unassessedWords].sort(byCodePoint),
       court: sortedNames(named.court), counsel: sortedNames(named.counsel), official: sortedNames(named.official),
       author: sortedNames(named.author), case: sortedNames(named.case),
       public: Object.fromEntries(Object.entries(pub).sort((x, y) => byCodePoint(x[0], y[0]))),
