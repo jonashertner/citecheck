@@ -569,5 +569,31 @@
     }
    }
   ]
+ },
+ {
+  "name": "Retest 2026-10-12: a bracketed area code, a website with the party's name, a Swiss IBAN with a wrong check digit",
+  "parts": [
+   {
+    "text": "Der Beschwerdeführer Hans Müller ist unter (044) 123-45-67 erreichbar.",
+    "where": {
+     "part": "body",
+     "index": 0
+    }
+   },
+   {
+    "text": "Seine Website www.hans-mueller.ch; die Website des Gerichts www.gerichte-zh.ch.",
+    "where": {
+     "part": "body",
+     "index": 1
+    }
+   },
+   {
+    "text": "Der Kläger hat das Konto CH93 0076 2011 6238 5295 8 angegeben, die Gegenpartei DE89 3704 0044 0532 0130 01.",
+    "where": {
+     "part": "body",
+     "index": 2
+    }
+   }
+  ]
  }
 ]

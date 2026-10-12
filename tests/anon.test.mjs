@@ -229,3 +229,11 @@ test('compounds only in German; a postcode before a placeholder is an address, a
   assert.deepEqual(at(3).filter(([l]) => l === 'address').map(([, t]) => t).sort(), ['8706', 'Bahnhofstrasse 12'].sort());
   assert.deepEqual(at(4).filter(([l]) => l !== 'word'), []);                       // "2018 E. 2", "1990 S. 38": no address
 });
+
+test('retest 2026-10-12: "(044) 123-45-67", a website named after the party, a Swiss IBAN with a wrong check digit', () => {
+  const r = run(19);
+  const ids = r.entries.filter((e) => e.kind === 'identifier').map((e) => [e.label, e.text]);
+  assert.deepEqual(ids.sort(), [['iban', 'CH93 0076 2011 6238 5295 8'], ['phone', '(044) 123-45-67'], ['profile', 'www.hans-mueller.ch']].sort());
+  // a foreign IBAN still needs its check digit; a website without a shown name stays explained
+  assert.ok(!shown(r).includes('DE89 3704 0044 0532 0130 01') && !shown(r).includes('www.gerichte-zh.ch'));
+});

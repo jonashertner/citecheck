@@ -56,7 +56,7 @@ function unescapeXml(text) {
 // Paragraph texts of one WordprocessingML part, in order. Text that tracked changes
 // mark as deleted (w:delText) is not part of the draft and is left out. A paragraph
 // inside another (a text box) is its own paragraph.
-const TOKEN = /<w:(p|t|delText|tab|br|cr|noBreakHyphen|footnote)(?=[\s>/])([^>]*)>|<\/w:(p|t|delText|footnote)>|([^<]+)/g;
+const TOKEN = /<w:(p|t|delText|tab|br|cr|noBreakHyphen|footnote|endnote)(?=[\s>/])([^>]*)>|<\/w:(p|t|delText|footnote|endnote)>|([^<]+)/g;
 export function paragraphsOf(xml) {
   const out = [];
   const open = [];                 // paragraphs being read, innermost last
@@ -67,8 +67,8 @@ export function paragraphsOf(xml) {
   while ((m = TOKEN.exec(xml)) !== null) {
     const [, tag, attributes, closing, text] = m;
     const selfClosing = attributes !== undefined && attributes.endsWith('/');
-    if (tag === 'footnote') skipNote = /w:type="(?:separator|continuationSeparator|continuationNotice)"/.test(attributes);
-    else if (closing === 'footnote') skipNote = false;
+    if (tag === 'footnote' || tag === 'endnote') skipNote = /w:type="(?:separator|continuationSeparator|continuationNotice)"/.test(attributes);
+    else if (closing === 'footnote' || closing === 'endnote') skipNote = false;
     else if (tag === 'p' && selfClosing) { if (!skipNote) out.push(''); }   // an empty paragraph still counts, as in Word
     else if (tag === 'p' && !selfClosing) open.push({ text: '' });
     else if (closing === 'p' && open.length) { const p = open.pop(); if (!skipNote) out.push(p.text); }
@@ -83,7 +83,7 @@ export function paragraphsOf(xml) {
   return out;
 }
 
-// [{text, where}] like word.readDocument(): the body, then the footnotes.
+// [{text, where}] like word.readDocument(): the body, then the footnotes, then the endnotes.
 export async function readDocx(buffer) {
   const zip = entries(buffer);
   const main = zip.get('word/document.xml');
@@ -93,6 +93,10 @@ export async function readDocx(buffer) {
   if (notes) {
     // Without note boundaries here, footnote paragraphs are numbered in sequence.
     paragraphsOf(await readEntry(buffer, notes)).forEach((text, index) => out.push({ text, where: { part: 'footnote', note: index, index: 0 } }));
+  }
+  const endnotes = zip.get('word/endnotes.xml');
+  if (endnotes) {
+    paragraphsOf(await readEntry(buffer, endnotes)).forEach((text, index) => out.push({ text, where: { part: 'endnote', note: index, index: 0 } }));
   }
   return out;
 }

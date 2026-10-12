@@ -305,7 +305,7 @@ def _german_by_line(text: str):
     return lambda pos: german[bisect.bisect_right(starts, pos) - 1]
 
 
-def _identifiers(t: _Text, taken: _Spans, explained: _Spans, public: dict) -> list[dict]:
+def _identifiers(t: _Text, taken: _Spans, explained: _Spans, public: dict, sites: list) -> list[dict]:
     text = t.text
     out = []
     for name in IDENTIFIERS:
@@ -313,13 +313,18 @@ def _identifiers(t: _Text, taken: _Spans, explained: _Spans, public: dict) -> li
             group = 1 if name in VALUE_GROUP else 0
             a, b = m.start(group), m.end(group)
             value = m.group(group)
+            # A web address ends before the punctuation of the sentence: "www.x.ch;" is "www.x.ch".
+            if name == "url":
+                value = re.sub(r"[.,;:!?)\]»\"'’]+$", "", value)
+                b = a + len(value)
             if taken.overlaps(a, b) or explained.overlaps(a, b):
                 continue
             label = LABEL.get(name, name)
             if name == "ahv" and not ahv_valid(value):
                 continue
             if name == "iban":
-                if not iban_valid(value):
+                # A Swiss or Liechtenstein IBAN with a wrong check digit is still someone's account, mistyped.
+                if not iban_valid(value) and not (value[:2] in ("CH", "LI") and len(re.sub(r"\s", "", value)) == 21):
                     continue
                 around = _whose(text, a, 170) + re.split(r"[\n,;.]", text[b:b + 40], maxsplit=1)[0]
                 if P["not_a_person"].search(around):
@@ -336,6 +341,7 @@ def _identifiers(t: _Text, taken: _Spans, explained: _Spans, public: dict) -> li
             if name == "url":
                 if not P["social"].search(value):
                     explained.add(a, b)
+                    sites.append((a, b, value))
                     continue
             # A landline in a letterhead or beside an office: "Postfach … Telefon … Fax …".
             if name == "phone" and not P["mobile"].match(value) and (_public(text, a, b) or P["letterhead"].match(text[b:b + 40])):
@@ -500,7 +506,8 @@ def check(parts: list[dict], vocabulary) -> dict:
         placeholders[form] = placeholders.get(form, 0) + 1
     initials = sum(1 for _ in P["initial"].finditer(text))
 
-    shown = _identifiers(t, taken, explained, public)
+    sites = []
+    shown = _identifiers(t, taken, explained, public, sites)
     german_at = _german_by_line(text)
     by_office, office_surnames, anonymized_roles, office_spans, public_given = _roles(t, vocabulary)
     for a, b in office_spans:
@@ -617,6 +624,13 @@ def check(parts: list[dict], vocabulary) -> dict:
             counts["unassessed"] += 1
             counts["unassessed_words"].add(unknown[i][2])
         i = j + 1
+
+    # A web address with a name shown here in it ("www.hans-mueller.ch") is that person's.
+    names = list(dict.fromkeys(fold(x["text"]) for x in shown if x["kind"] == "word" and len(x["text"]) >= 4))
+    for a, b, value in sites:
+        site = fold(value)
+        if any(n in site for n in names):
+            shown.append({"kind": "identifier", "label": "profile", "start": a, "end": b, "text": value})
 
     for m in P["code"].finditer(text):
         a, b = m.start(), m.end()
