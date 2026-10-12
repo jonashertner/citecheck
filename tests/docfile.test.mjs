@@ -235,3 +235,11 @@ test('URL: a name replaced in a link target leaves its escaped delimiters as the
   const copy = await anonymizedCopy(buf, [{ placeholder: 'A.________', forms: ['Emma'], places: [] }]);
   assert.match(partXml(copy, 'word/_rels/document.xml.rels'), /Target="https:\/\/example\.org\/a%2Fb\?x=1%26y%3D2&amp;name=A\.________%20Muster"/);
 });
+
+test('retest 2026-10-12: a name ticked, the e-mail address it stands in left open, goes whole', async () => {
+  const copy = await anonymizedCopy(buffer, [{ placeholder: 'A.________', forms: ['Müller', 'Mueller', 'mueller'], places: [] }]);
+  // not "mailto:hans.A.________@gmail.com": the address is one unit and keeps no part of the person
+  assert.match(partXml(copy, 'word/_rels/document.xml.rels'), /Target="mailto:%5B%E2%80%A6%5D"/);
+  // a field name is no address: the name in it is replaced where it stands
+  assert.match(partXml(copy, 'word/document.xml'), /MERGEFIELD Partei_A\.________ /);
+});

@@ -16,5 +16,7 @@ test('anchor: the cited number when listed, else the first number below it, else
   assert.equal(link(row, '3'), 'https://mcp.opencaselaw.ch/entscheid/bger_4A_747_2012#e-3-1');   // reported: no fragment at all
   assert.equal(link(row, '9'), 'https://mcp.opencaselaw.ch/entscheid/bger_4A_747_2012');
   assert.equal(link(row, null), 'https://mcp.opencaselaw.ch/entscheid/bger_4A_747_2012');
+  // the decision page keeps letters and the slash: id="e-3a", id="e-6c/aa" (BGE 125 I 127, retest 2026-10-12)
+  assert.equal(link({ id: 'bge_125 I 127', enums: ['6c', '6c/aa'] }, '6c/aa'), 'https://mcp.opencaselaw.ch/entscheid/bge_125%20I%20127#e-6c/aa');
   assert.equal(link({ id: 'bge_140 III 320', enums: [] }, '2'), 'https://mcp.opencaselaw.ch/entscheid/bge_140%20III%20320');
 });

@@ -77,7 +77,8 @@ function decisionLink(row, text, pinpoint) {
   // The cited number, or the first listed number below it (E. 3 when the list has 3.1, 3.2
   // and no line for 3 itself), the rule the check applies; none when neither is listed.
   const target = pinpoint && (row.enums.includes(pinpoint) ? pinpoint : row.enums.find((e) => e.startsWith(pinpoint) && /^[.a-z/]/.test(e.slice(pinpoint.length))));
-  const anchor = target ? '#e-' + target.replace(/[^0-9a-z]+/g, '-') : '';
+  // The decision page numbers its Erwägungen e-6-4-1, e-3a, e-6c/aa: dots become hyphens.
+  const anchor = target ? '#e-' + target.replace(/\./g, '-') : '';
   a.href = DECISION_BASE + row.id.split('/').map(encodeURIComponent).join('/') + anchor;
   a.target = '_blank';
   a.rel = 'noopener noreferrer';
@@ -104,8 +105,14 @@ function messages(f) {
     const near = (f.suggestions || []).filter((s) => s.reason !== 'one_character').slice(0, 2).map((s) => label(s.row, f.text));
     out.push(t('not_in_list') + (near.length ? ' ' + t('similar') + ': ' + near.join(', ') + '.' : ''));
   }
+  // Several Erwägungen ("E. 2.3 und 2.9"): one sentence for those missing at the same place.
+  const absent = new Map();
+  for (const issue of f.issues.filter((i) => i.kind === 'pinpoint')) {
+    const nearby = issue.nearby.join(', ') + (issue.more ? ' …' : '');
+    absent.set(nearby, [...(absent.get(nearby) || []), issue.written]);
+  }
+  for (const [nearby, pins] of absent) out.push(t(pins.length > 1 ? 'pins_absent' : 'pin_absent', { pin: pins[0], pins: pins.join(', '), nearby }));
   for (const issue of f.issues) {
-    if (issue.kind === 'pinpoint') out.push(t('pin_absent', { pin: issue.written, nearby: issue.nearby.join(', ') + (issue.more ? ' …' : '') }));
     if (issue.kind === 'page') {
       out.push(issue.range.last === null || issue.written.every((p) => p < issue.range.first)
         ? t('page_before', { pages: issue.written.join(', '), first: issue.range.first })
@@ -115,14 +122,16 @@ function messages(f) {
     if (issue.kind === 'date') out.push(t('date_differs', { written: formatDate(issue.written, { written: true }), listed: issue.listed.map((d) => formatDate(d)).join(', ') }));
     if (issue.kind === 'court') out.push(t('court_differs', { rows: issue.rows.map(rowText).join('; ') }));
   }
-  if (f.status === 'unchecked') out.push(t(f.notes[0].kind === 'collection' ? 'collection' : 'unknown_shape'));
+  if (f.status === 'unchecked') out.push(t({ collection: 'collection', echr_not_listed: 'echr_not_listed' }[f.notes[0].kind] || 'unknown_shape'));
   if (f.rows.length && !f.issues.some((i) => i.kind === 'court')) {
     out.push(f.rows[0].date ? t('in_list', { court: courtName(f.rows[0]), date: formatDate(f.rows[0].date) }) : t('in_list_nodate', { court: courtName(f.rows[0]) }));
   }
-  if (f.parsed && f.parsed.pinpoint && f.status !== 'missing' && !f.issues.some((i) => i.kind === 'pinpoint' || i.kind === 'court') &&
-      !f.notes.some((n) => n.kind.startsWith('pinpoint_'))) out.push(t('pin_ok', { pin: f.parsed.pinpoint }));
+  const pins = f.parsed ? f.parsed.pinpoints || (f.parsed.pinpoint ? [f.parsed.pinpoint] : []) : [];
+  const ok = pins.filter((p) => !f.issues.some((i) => i.written === p) && !f.notes.some((n) => n.written === p));
+  if (ok.length && f.status !== 'missing' && !f.issues.some((i) => i.kind === 'court')) out.push(t(ok.length > 1 ? 'pins_ok' : 'pin_ok', { pin: ok[0], pins: ok.join(', ') }));
+  const unstructured = f.notes.filter((n) => n.kind === 'pinpoint_no_structure').map((n) => n.written);
+  if (unstructured.length) out.push(t('pin_no_structure', { pin: unstructured.join(', ') }));
   for (const note of f.notes) {
-    if (note.kind === 'pinpoint_no_structure') out.push(t('pin_no_structure', { pin: note.written }));
     if (note.kind === 'pinpoint_parent_only') out.push(t('pin_parent_only', { pin: note.written, parent: note.parent }));
     if (note.kind === 'several') out.push(t('several', { rows: note.rows.map(rowText).join('; ') }));
     if (note.kind === 'page_inside') out.push(t('page_inside', { pages: note.written.join(', '), first: note.range.first, last: note.range.last }));
@@ -163,6 +172,9 @@ function renderChrome() {
   $('paste-hint').textContent = t('paste_hint');
   $('pick').textContent = t('pick_file');
   $('paste-label').hidden = $('paste-text').hidden = Boolean(state.file);
+  // Once checked, the draft's box gives the room to the results: a chosen file is one line, pasted text two.
+  $('paste').classList.toggle('loaded', Boolean(state.file));
+  $('paste').classList.toggle('checked', Boolean(state.result));
   $('file-line').textContent = state.file ? t('file_loaded', { name: state.file.name, n: formatNumber(state.file.paragraphs.length) }) : t('file_hint');
   $('privacy').textContent = anonMode ? t('a_privacy') : t('privacy');
   $('about-open').textContent = t('privacy_more');
@@ -433,7 +445,8 @@ async function runCheck() {
     }
     t1 = performance.now();
     state.result = checkDocument(read.paragraphs, state.index);
-    state.timings = { read: read.ms, list: listMs, check: performance.now() - t1 };
+    // A chosen file was read when it was chosen; that is the time to report, not the hand-over here.
+    state.timings = { read: state.host !== 'word' && state.file ? state.file.ms : read.ms, list: listMs, check: performance.now() - t1 };
     state.filter = state.result.counts.differs + state.result.counts.missing ? state.filter : 'all';
     if (state.filter !== 'all' && !state.result.counts[state.filter]) state.filter = 'all';
     state.open = null;
@@ -450,7 +463,9 @@ async function takeFile(file) {
   if (!file) return;
   alertUser('');
   try {
+    const t0 = performance.now();
     state.file = { name: file.name, paragraphs: await readDocx(await file.arrayBuffer()) };
+    state.file.ms = performance.now() - t0;
     $('paste-text').value = '';
   } catch (error) {
     state.file = null;
@@ -471,9 +486,10 @@ async function start() {
   }
   state.host = info && info.host && word.inWord() ? 'word' : 'browser';
   const office = state.host === 'word' && Office.context ? Office.context.displayLanguage : null;
-  // A link may name the language (?lang=fr, from the install page); a choice made in the pane wins.
+  // A link may name the language (?lang=fr, from the install page): it is a choice too, and is kept.
   const linked = new URLSearchParams(location.search).get('lang');
-  setLanguage(recall('language') || (LANGUAGES.includes(linked) ? linked : null) || office || navigator.language);
+  if (LANGUAGES.includes(linked)) remember('language', linked);
+  setLanguage(recall('language') || office || navigator.language);
 
   // The ribbon has a button per check; "Anonymisierung prüfen" opens taskpane.html?mode=anon.
   const asked = new URLSearchParams(location.search).get('mode');

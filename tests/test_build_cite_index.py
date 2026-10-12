@@ -41,7 +41,7 @@ def test_build_is_sorted_verified_and_reproducible(tmp_path):
     assert rows["HC/2018/391"][2] == "VD"
     assert rows["BGE 073 II 0006"][4] == "3,4,5,6" and "73_II_6" not in rows   # early volumes are keyed like the rest
     assert sum(1 for line in lines if line.startswith("K 2015/3\t")) == 2
-    assert manifest["decisions"] == 14 and manifest["with_numbering"] == 4
+    assert manifest["decisions"] == 18 and manifest["with_numbering"] == 4
     assert manifest["bge_volumes"] == {"first": 73, "last": 140, "absent": list(range(74, 140))}
     assert manifest["courts"]["bger"] == {"canton": "CH", "decisions": 3, "with_numbering": 1, "first": "2006-10-02", "last": "2013-06-20"}
     assert not any("\t".join(r).count("x") for r in rows.values() if r[0].startswith("BGE"))  # no decision text

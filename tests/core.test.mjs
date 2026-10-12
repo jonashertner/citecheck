@@ -187,6 +187,40 @@ test('deep check C-series: qualifiers in any order and capitals, narrow spaces, 
   assert.equal(only('BGE 140 III 115. Die Sache ist erledigt.').text, 'BGE 140 III 115');   // a sentence after it is no qualifier
 });
 
+test('round 2: every Erwägung of a range or list is checked, and one sentence names those missing', () => {
+  const both = only('BGE 140 III 115 E. 2.3 und 2.9');
+  assert.deepEqual([both.text, both.parsed.pinpoints, both.issues.map((i) => i.written)], ['BGE 140 III 115 E. 2.3 und 2.9', ['2.3', '2.9'], ['2.9']]);
+  assert.deepEqual(only('BGE 140 III 115 E. 2.1–2.7').issues.map((i) => i.written), ['2.7']);
+  assert.deepEqual(only('ATF 140 III 115 consid. 3, 4 et 9').issues.map((i) => i.written), ['9']);
+  assert.deepEqual(only('BGE 140 III 115 E. 3 bis 4').status, 'found');
+  // a number that starts another reference or is a year belongs to no Erwägung
+  assert.deepEqual(check('BGE 140 III 115 E. 2 und 140 III 134 E. 1').findings.map((f) => [f.text, f.parsed.pinpoints]),
+    [['BGE 140 III 115 E. 2', ['2']], ['140 III 134 E. 1', ['1']]]);
+  assert.deepEqual(only('Urteil 4A_747/2012 E. 3 und 2013 die Klage').parsed.pinpoints, ['3']);
+});
+
+test('round 2: BGE without the collection after a BGE, BGE dates, Italian dates', () => {
+  const r = check('Vgl. BGE 140 III 115 E. 2.3; 140 III 134 und 140 II 202 S. 999.');
+  assert.deepEqual(r.findings.map((f) => [f.text, f.status]), [['BGE 140 III 115 E. 2.3', 'found'], ['140 III 134', 'found'], ['140 II 202 S. 999', 'found']]);
+  assert.equal(only('BGE 140 III 115, 120').parsed.pages[0], 120);                      // a page after a comma stays a page
+  assert.deepEqual(only('BGE 140 III 115 vom 1. März 2014').issues.map((i) => i.kind), ['date']);
+  assert.equal(only('BGE 140 III 115 vom 11. Februar 2014').status, 'found');
+  const it = only("sentenza 4A_747/2012 dell'1 maggio 2013");
+  assert.deepEqual([it.text, it.issues.map((i) => i.kind)], ["4A_747/2012 dell'1 maggio 2013", ['date']]);
+  assert.equal(only('sentenza 4A_747/2012 del 5 aprile 2013').status, 'found');
+});
+
+test('round 2: ECtHR application numbers after the court is named; Ticino file numbers', () => {
+  const r = check('EGMR, X. gegen Schweiz, Nr. 4723/13 und 1007/20; CourEDH, requête no 9999/19.', 'Kantonsgericht, Nr. 4724/13.');
+  assert.deepEqual(r.findings.map((f) => [f.text, f.status, f.rows.map((x) => x.court).join()]),
+    [['4723/13', 'found', 'hudoc_ch'], ['1007/20', 'found', 'ecthr_chamber'], ['9999/19', 'unchecked', '']]);
+  assert.equal(r.findings[2].notes[0].kind, 'echr_not_listed');
+  assert.deepEqual(check('EGMR-Rechtsprechung; ein anderes Verfahren 4725/13.').findings, []);   // another clause
+  assert.deepEqual(check('EGMR und Kantonsgericht, Nr. 4724/13.').findings, []);                  // listed, but for the canton
+  const ti = check('Tribunale d’appello, sentenza 12.2002.183 e 12.2003.9; versione 10.2020.1.');
+  assert.deepEqual(ti.findings.map((f) => [f.text, f.status]), [['12.2002.183', 'found'], ['12.2003.9', 'unchecked']]);
+});
+
 test('deep check C13-C15: a docket with spaces around its slash, a spaced numeric date, a sentence after', () => {
   const c13 = only('BGer 4A_747 / 2012 E. 99');
   assert.deepEqual([c13.text, c13.status, c13.parsed.pinpoint], ['BGer 4A_747 / 2012 E. 99', 'differs', '99']);
