@@ -246,17 +246,11 @@ function decodeWithSpans(raw) {
 // "%2F", "%26", "%3D" stay escaped, so the link still means what it meant.
 function replaceTarget(target, pats) {
   const { text, spans } = decodeWithSpans(target);
-  const hits = [];
-  for (const pat of pats) for (const m of text.matchAll(pat.re)) hits.push([m.index, m.index + m[0].length, pat.placeholder]);
-  hits.sort((a, b) => a[0] - b[0] || b[1] - a[1]);
   let out = '';
   let at = 0;
-  let end = 0;
-  for (const [a, b, placeholder] of hits) {
-    if (a < end || a === b) continue;
+  for (const [a, b, placeholder] of hitsIn(text, pats)) {
     out += target.slice(at, spans[a][0]) + encodeURIComponent(placeholder);
     at = spans[b - 1][1];
-    end = b;
   }
   return out + target.slice(at);
 }
@@ -390,7 +384,42 @@ function patterns(replacements) {
   });
 }
 
-const replaceAll = (s, pats) => pats.reduce((acc, p) => acc.replace(p.re, p.placeholder), s);
+// An e-mail address is one unit. A name inside one ("anna.mueller@…") takes the whole address with it,
+// as ticking the address would: never "mailto:anna.A.________@…", which keeps the first name.
+// A web address keeps its other parts: a name in it is replaced where it stands, and the link still works.
+const ADDRESS = /[\p{L}\p{N}._%+\-]+@[\p{L}\p{N}\-]+(?:\.[\p{L}\p{N}\-]+)+/gu;
+const WHOLE = '[…]';
+
+// Where the forms stand in `text`, left to right, without overlaps: [start, end, placeholder].
+function hitsIn(text, pats) {
+  const units = [...text.matchAll(ADDRESS)].map((m) => [m.index, m.index + m[0].length]);
+  const hits = [];
+  for (const pat of pats) {
+    for (const m of text.matchAll(pat.re)) {
+      const a = m.index;
+      const b = a + m[0].length;
+      const unit = units.find(([s, e]) => a < e && b > s && (a > s || b < e));
+      hits.push(unit ? [Math.min(a, unit[0]), Math.max(b, unit[1]), WHOLE] : [a, b, pat.placeholder]);
+    }
+  }
+  hits.sort((x, y) => x[0] - y[0] || y[1] - x[1]);
+  let end = 0;
+  return hits.filter(([a, b]) => {
+    if (a < end || a === b) return false;
+    end = b;
+    return true;
+  });
+}
+
+function replaceAll(s, pats) {
+  let out = '';
+  let at = 0;
+  for (const [a, b, placeholder] of hitsIn(s, pats)) {
+    out += s.slice(at, a) + placeholder;
+    at = b;
+  }
+  return out + s.slice(at);
+}
 
 // Removes and unwraps in place: tracked changes accepted, comments and hidden runs gone
 // (hidden by their own properties or by a style).
