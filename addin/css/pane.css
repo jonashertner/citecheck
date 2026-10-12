@@ -287,6 +287,10 @@ a { color: var(--action); text-underline-offset: 2px; }
 .a-tick:disabled { opacity: 0.45; }
 .quiet.wide { flex: 1; padding: 8px 12px; }
 .paste.loaded { padding-top: 10px; }
+.paste.checked .drop { padding: 4px 10px; margin-bottom: 8px; }
+.paste.checked p#paste-hint { display: none; }
+.paste.checked label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }   /* still the box's name */
+.paste.checked textarea { height: 4.2em; }
 .paste.loaded .drop { border: 0; padding: 0; margin-bottom: 0; flex-direction: row-reverse; justify-content: space-between; }
 .paste.loaded .drop .quiet { border: 0; padding: 0; background: none; color: var(--action); text-decoration: underline; text-underline-offset: 2px; }
 .paste.loaded .drop p { color: var(--ink); font: 14px/1.4 var(--serif); }

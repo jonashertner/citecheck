@@ -172,6 +172,9 @@ function renderChrome() {
   $('paste-hint').textContent = t('paste_hint');
   $('pick').textContent = t('pick_file');
   $('paste-label').hidden = $('paste-text').hidden = Boolean(state.file);
+  // Once checked, the draft's box gives the room to the results: a chosen file is one line, pasted text two.
+  $('paste').classList.toggle('loaded', Boolean(state.file));
+  $('paste').classList.toggle('checked', Boolean(state.result));
   $('file-line').textContent = state.file ? t('file_loaded', { name: state.file.name, n: formatNumber(state.file.paragraphs.length) }) : t('file_hint');
   $('privacy').textContent = anonMode ? t('a_privacy') : t('privacy');
   $('about-open').textContent = t('privacy_more');
