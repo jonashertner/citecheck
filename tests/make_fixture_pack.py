@@ -20,6 +20,10 @@ DECISIONS = [
     ("vd_HC_2018_391", "vd_gerichte", "VD", "2018-07-02", "HC / 2018 / 391", None),
     ("sg_K_2015_3", "sg_gerichte", "SG", "2015-08-19", "K 2015/3", None),
     ("ag_K_2015_3", "ag_gerichte", "AG", "2015-02-02", "K 2015/3", None),
+    ("hudoc_4723_13", "hudoc_ch", "CH", "2016-01-12", "4723/13", None),               # ECtHR application numbers
+    ("ecthr_1007_20", "ecthr_chamber", "CE", "2022-03-01", "1007/20_21022/21", None), # joined applications
+    ("bl_4724_13", "bl_gerichte", "BL", "2014-05-06", "4724/13", None),               # a cantonal file numbered alike
+    ("ti_12.2002.183", "ti_gerichte", "TI", "2002-10-09", "12.2002.183", None),
 ]
 PARAGRAPHS = {
     "bge_140_III_115": ["1", "2", "2.1", "2.2", "2.3", "3", "3.1", "3.2", "4"],

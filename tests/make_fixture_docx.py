@@ -1,5 +1,5 @@
 """A minimal .docx for tests: body with split runs, a tracked deletion, a no-break
-hyphen, a table cell, a text box inside a paragraph, and two footnotes."""
+hyphen, a table cell, a text box inside a paragraph, two footnotes and an endnote."""
 import sys
 import zipfile
 
@@ -17,9 +17,16 @@ FOOTNOTES = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:footnote w:id="1"><w:p><w:r><w:t>BGE 140 III 134 S. 136.</w:t></w:r></w:p></w:footnote>
 <w:footnote w:id="2"><w:p><w:r><w:t>Urteil 9C_1/2020.</w:t></w:r></w:p></w:footnote>
 </w:footnotes>"""
+ENDNOTES = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:endnotes {W}>
+<w:endnote w:type="separator" w:id="-1"><w:p><w:r><w:separator/></w:r></w:p></w:endnote>
+<w:endnote w:type="continuationSeparator" w:id="0"><w:p><w:r><w:continuationSeparator/></w:r></w:p></w:endnote>
+<w:endnote w:id="1"><w:p><w:r><w:t>Urteil 4A_774/2012.</w:t></w:r></w:p></w:endnote>
+</w:endnotes>"""
 
 if __name__ == "__main__":
     with zipfile.ZipFile(sys.argv[1], "w", zipfile.ZIP_DEFLATED) as z:
         z.writestr(zipfile.ZipInfo("[Content_Types].xml"), "<Types/>", zipfile.ZIP_STORED)
         z.writestr("word/document.xml", DOCUMENT)
         z.writestr("word/footnotes.xml", FOOTNOTES)
+        z.writestr("word/endnotes.xml", ENDNOTES)
