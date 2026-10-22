@@ -237,3 +237,29 @@ test('retest 2026-10-12: "(044) 123-45-67", a website named after the party, a S
   // a foreign IBAN still needs its check digit; a website without a shown name stays explained
   assert.ok(!shown(r).includes('DE89 3704 0044 0532 0130 01') && !shown(r).includes('www.gerichte-zh.ch'));
 });
+
+test('own terms: whole words in any case, any space or hyphen, offsets as written', async () => {
+  const { findTerm } = await import('../addin/js/anon-pane.js');
+  const parts = [
+    { text: 'Die Muster Bau AG und MUSTER bau ag; Mustermann nicht.', where: { part: 'body' } },
+    { text: 'Muster-Bau AG im Kommentar', where: { part: 'comment' } },
+    { text: 'Frau Zürcher aus Zürich', where: { part: 'footnote' } },
+  ];
+  const hits = findTerm(parts, '  Muster Bau AG ');
+  assert.deepEqual(hits.map((h) => [h.part, h.text, h.visible]),
+    [[0, 'Muster Bau AG', true], [0, 'MUSTER bau ag', true], [1, 'Muster-Bau AG', false]]);
+  assert.deepEqual(findTerm(parts, 'muster').map((h) => h.text), ['Muster', 'MUSTER', 'Muster']);   // not inside "Mustermann"
+  const z = findTerm(parts, 'Zürcher');                                                   // decomposed umlaut in the file
+  assert.deepEqual(z.map((h) => [h.start, h.end, h.text]), [[5, 13, 'Zürcher']]);
+  assert.deepEqual([findTerm(parts, 'Zürich (ZH)'), findTerm(parts, ' ')], [[], []]);
+  assert.equal(findTerm([{ text: 'Firma (AG) bleibt', where: { part: 'body' } }], '(AG)').length, 1);   // signs at the edges
+});
+
+test('own terms: an overlap keeps the longer place, an equal one the first row', async () => {
+  const { widest } = await import('../addin/js/anon-pane.js');
+  const at = (start, end, seq = 0) => ({ file: 'word/document.xml', seq, start, end, text: '' });
+  const user = { placeholder: 'A.________', forms: ['Müller'], places: [at(5, 11), at(0, 6, 1)] };
+  const check = { placeholder: 'B.________', forms: ['Hans Müller'], places: [at(0, 11), at(0, 6, 1)] };
+  const [u, c] = widest([user, check]);
+  assert.deepEqual([u.places.map((p) => p.seq), c.places.map((p) => p.seq)], [[1], [0]]);
+});

@@ -161,6 +161,16 @@ export async function showPlace(place) {
 
 export const commentPlace = (place, text) => commentOn((context) => findPlace(context, place), text);
 
+// The text selected in the document, for a term the clerk adds. Read only.
+export async function selectedText() {
+  return Word.run(async (context) => {
+    const range = context.document.getSelection();
+    range.load('text');
+    await context.sync();
+    return range.text;
+  });
+}
+
 // The document's file name, as Word knows it ("" for a new, unsaved one).
 export function fileName() {
   try {
