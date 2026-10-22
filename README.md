@@ -103,7 +103,8 @@ A.________"), and the arrow keys step through the places in Word.
 What the check does not show, the clerk can add: a name, company or place
 typed above the list, or in Word the text selected in the document. It is
 found as a whole word in any case, a space or hyphen standing for either
-("Muster Bau AG" also finds "Muster-Bau AG"), in every part of the file, and
+("Muster Bau AG" also finds "Muster-Bau AG"), after a dot with or without a
+space ("St. Gallen" and "St.Gallen"), in every part of the file, and
 gets an entry of its own with the next free letter, ticked. A term the list
 already holds ticks that entry instead. Added terms stay through "Check again"
 and are dropped with another file. Where an added term and a shown entry

@@ -126,14 +126,16 @@ function buildRows(result, parts) {
 
 // ── terms the clerk adds ──────────────────────────────────────────────────
 // Where a term stands: as a whole word, in any case; a space or hyphen in it stands for any
-// space or hyphen. Every part of the file is searched; places are given in the part as written.
+// space or hyphen; after a dot the space may be there or not ("St. Gallen", "St.Gallen").
+// Every part of the file is searched; places are given in the part as written.
 export function findTerm(parts, term) {
   const words = term.normalize('NFC').split(/[\s\u00a0\-\u2010\u2011]+/u).filter(Boolean);
   if (!words.length) return [];
-  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const body = words.map(esc).join('[\\s\\u00a0\\-\\u2010\\u2011]+');
-  const head = /^[\p{L}\p{N}]/u.test(words[0]) ? '(?<![\\p{L}\\p{N}])' : '';
-  const tail = /[\p{L}\p{N}]$/u.test(words[words.length - 1]) ? '(?![\\p{L}\\p{N}])' : '';
+  const sep = '[\\s\\u00a0\\-\\u2010\\u2011]';
+  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\.(?!$)/g, '\\.' + sep + '*');
+  const body = words.map((w, i) => esc(w) + (i === words.length - 1 ? '' : sep + (w.endsWith('.') ? '*' : '+'))).join('');
+  const head = /^[\p{L}\p{N}]/u.test(words[0]) ? '(?<![\\p{L}\\p{N}_])' : '';
+  const tail = /[\p{L}\p{N}]$/u.test(words[words.length - 1]) ? '(?![\\p{L}\\p{N}_])' : '';
   const re = new RegExp(head + body + tail, 'giu');
   const out = [];
   parts.forEach((p, i) => {

@@ -253,6 +253,10 @@ test('own terms: whole words in any case, any space or hyphen, offsets as writte
   assert.deepEqual(z.map((h) => [h.start, h.end, h.text]), [[5, 13, 'Zürcher']]);
   assert.deepEqual([findTerm(parts, 'Zürich (ZH)'), findTerm(parts, ' ')], [[], []]);
   assert.equal(findTerm([{ text: 'Firma (AG) bleibt', where: { part: 'body' } }], '(AG)').length, 1);   // signs at the edges
+  const gallen = [{ text: 'St. Gallen, St.Gallen, St.-Gallen, Sankt Gallen, Gallenstein', where: { part: 'body' } }];
+  const both = ['St. Gallen', 'St.Gallen', 'St.-Gallen'];
+  assert.deepEqual([findTerm(gallen, 'St. Gallen').map((h) => h.text), findTerm(gallen, 'st.gallen').map((h) => h.text)], [both, both]);
+  assert.deepEqual(findTerm([{ text: 'MusterBau AG', where: { part: 'body' } }], 'Muster Bau'), []);   // a space is not nothing
 });
 
 test('own terms: an overlap keeps the longer place, an equal one the first row', async () => {
