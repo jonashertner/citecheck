@@ -99,6 +99,16 @@ the name is written (letters already used by the document are skipped; after
 Z come AA, AB …, never a letter in use). A tick changes nothing in the open
 document; the open row shows the result in its sentence ("~~Hans Müller~~
 A.________"), and the arrow keys step through the places in Word.
+
+What the check does not show, the clerk can add: a name, company or place
+typed above the list, or in Word the text selected in the document. It is
+found as a whole word in any case, a space or hyphen standing for either
+("Muster Bau AG" also finds "Muster-Bau AG"), in every part of the file, and
+gets an entry of its own with the next free letter, ticked. A term the list
+already holds ticks that entry instead. Added terms stay through "Check again"
+and are dropped with another file. Where an added term and a shown entry
+overlap ("Müller" in "Hans Müller"), the longer place is replaced; the copy is
+checked for any place of an added term left over.
 **"Create anonymised copy"** writes a new `.docx`:
 
 - every ticked place replaced as the name is written, with its initial and both

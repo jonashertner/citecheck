@@ -6,7 +6,7 @@
 // State lives here; the DOM is rebuilt from it with createElement and
 // textContent only, so text from the document is never parsed as HTML.
 
-import { check, fold } from './anon.js';
+import { check, fold, compose } from './anon.js';
 import { openVocabulary } from './index.js';
 import { readFile, anonymizedCopy, verifyCopy } from './docfile.js';
 import * as word from './word.js';
@@ -38,6 +38,8 @@ const state = {
   checked: null,         // the bytes of that file: the copy is made from exactly these
   result: null,
   rows: [],              // what the clerk decides on: one per person, ambiguous name, identifier or number
+  added: [],             // terms the clerk added, found again at every check
+  addNote: '',
   decide: new Map(),     // row key -> {replace, ok, placeholder}
   style: 'long',
   open: null,
@@ -120,6 +122,119 @@ function buildRows(result, parts) {
     ...others.filter((r) => r.kind === 'identifier').sort(byPlace),
     ...[...people, ...ambiguous, ...others.filter((r) => r.kind !== 'identifier')].sort(byPlace),
   ];
+}
+
+// ── terms the clerk adds ──────────────────────────────────────────────────
+// Where a term stands: as a whole word, in any case; a space or hyphen in it stands for any
+// space or hyphen. Every part of the file is searched; places are given in the part as written.
+export function findTerm(parts, term) {
+  const words = term.normalize('NFC').split(/[\s\u00a0\-\u2010\u2011]+/u).filter(Boolean);
+  if (!words.length) return [];
+  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const body = words.map(esc).join('[\\s\\u00a0\\-\\u2010\\u2011]+');
+  const head = /^[\p{L}\p{N}]/u.test(words[0]) ? '(?<![\\p{L}\\p{N}])' : '';
+  const tail = /[\p{L}\p{N}]$/u.test(words[words.length - 1]) ? '(?![\\p{L}\\p{N}])' : '';
+  const re = new RegExp(head + body + tail, 'giu');
+  const out = [];
+  parts.forEach((p, i) => {
+    const [text, map] = compose(p.text);
+    const at = (k) => (map ? map[k] : k);
+    for (const m of text.matchAll(re)) {
+      const start = at(m.index);
+      const end = at(m.index + m[0].length);
+      out.push({ part: i, start, end, text: p.text.slice(start, end), visible: VISIBLE.has(p.where.part) });
+    }
+  });
+  return out;
+}
+
+// A term the clerk added overlaps a place the check showed ("Müller" in "Hans Müller", or
+// "Müller Bau AG" around "Müller"): the longer place is replaced, the shorter one with it.
+// Of two equal places, the first row's wins; the clerk's own terms come first.
+export function widest(replacements) {
+  const all = replacements.flatMap((r) => r.places);
+  const order = [...all].sort((a, b) => (b.end - b.start) - (a.end - a.start));
+  const taken = new Map();
+  const keep = new Set();
+  for (const p of order) {
+    const k = p.file + '|' + p.seq;
+    const here = taken.get(k) || [];
+    if (here.some((q) => p.start < q.end && q.start < p.end)) continue;
+    here.push(p);
+    taken.set(k, here);
+    keep.add(p);
+  }
+  return replacements.map((r) => ({ ...r, places: r.places.filter((p) => keep.has(p)) }));
+}
+
+const userKey = (term) => 'u:' + fold(term);
+
+function userRow(term) {
+  const occurrences = findTerm(state.read.parts, term).map((o) => ({ ...o, kind: state.read.parts[o.part].where.part }));
+  if (!occurrences.length) return null;
+  // shown as the file writes it, where only the case differs from what was typed
+  const text = (occurrences.find((o) => fold(o.text) === fold(term)) || { text: term }).text;
+  const forms = [...new Set([text, term, ...occurrences.map((o) => o.text)])];
+  return {
+    key: userKey(term), kind: 'word', user: true, label: null, person: false, text, forms,
+    variants: forms.filter((f) => f !== text && f !== term),
+    removed: occurrences.every((o) => REMOVED.has(o.kind)),
+    occurrences,
+    hidden: occurrences.every((o) => !o.visible),
+  };
+}
+
+function addTerm(raw) {
+  const term = (raw || '').replace(/[\s\u00a0]+/gu, ' ').trim();
+  const note = (message) => { state.addNote = message; render(); };
+  if (!state.read) return;
+  if ([...term].length < 2) return note(t('a_add_short'));
+  if (term.length > 120) return note(t('a_add_long'));
+  // Already a row: that row is ticked and opened, not shown twice.
+  const same = (x) => fold(x) === fold(term);
+  const known = state.rows.find((r) => r.key === userKey(term) || same(r.text) || r.variants.some(same));
+  if (known) {
+    const d = state.decide.get(known.key);
+    if (!known.removed) { d.replace = true; d.ok = false; }
+    state.open = known.key;
+    state.step = -1;
+    state.copy = null;
+    $('a-add-text').value = '';
+    return note(t('a_add_known', { term: known.text }));
+  }
+  const row = userRow(term);
+  if (!row) return note(t('a_add_none', { term }));
+  state.added.push(term);
+  state.rows.unshift(row);
+  assignPlaceholders();
+  const d = state.decide.get(row.key);
+  d.replace = !row.removed;
+  state.open = row.key;
+  state.step = -1;
+  state.copy = null;
+  $('a-add-text').value = '';
+  const n = row.occurrences.length;
+  note(t('a_add_done', { term: row.text, places: n === 1 ? t('a_places_one') : t('a_places_n', { n }) }));
+}
+
+function removeTerm(row) {
+  state.added = state.added.filter((x) => userKey(x) !== row.key);
+  state.rows = state.rows.filter((r) => r !== row);
+  state.decide.delete(row.key);
+  state.open = null;
+  state.copy = null;
+  state.addNote = '';
+  render();
+}
+
+async function addSelection() {
+  try {
+    const text = await word.selectedText();
+    if (!text || !text.trim()) { state.addNote = t('a_add_selection_empty'); render(); return; }
+    addTerm(text);
+  } catch (error) {
+    say(t('err_generic', { message: (error && error.message) || String(error) }));
+  }
 }
 
 // A name that fits several people takes the letter of the first of them until the clerk
@@ -207,7 +322,11 @@ export async function runCheck() {
     state.result = check(state.read.parts, state.vocabulary);
     state.timings = { words: words.ms, read: file.ms, check: performance.now() - t1 };
     const before = state.decide;
-    state.rows = buildRows(state.result, state.read.parts);
+    // The clerk's own terms are found again; one no longer in the document is dropped.
+    const users = state.added.map(userRow).filter(Boolean);
+    state.added = users.map((r) => r.text);
+    state.rows = [...users, ...buildRows(state.result, state.read.parts)];
+    state.addNote = '';
     state.decide = new Map(state.rows.filter((r) => before.has(r.key)).map((r) => [r.key, before.get(r.key)]));
     // Letters chosen place by place hold only while the places are the same.
     for (const r of state.rows) {
@@ -264,7 +383,7 @@ async function makeCopy() {
       if (!byPlaceholder.size) byPlaceholder.set(placeholderOf(r), []);
       return [...byPlaceholder].map(([placeholder, places], k) => ({ placeholder, forms: k ? [] : r.forms, places }));
     });
-    const copy = await anonymizedCopy(buffer, replacements, { replaced: 0, skipped: [] });
+    const copy = await anonymizedCopy(buffer, widest(replacements), { replaced: 0, skipped: [] });
     // The copy is read and checked like any document before it is handed out.
     const read = await readFile(copy, '');
     const again = check(read.parts, state.vocabulary);
@@ -278,6 +397,8 @@ async function makeCopy() {
         if (replacedKeys.has(fold(o.text)) || REMOVED.has(read.parts[o.part].where.part)) leftAt.add(o.part + ':' + o.start);
       }
     }
+    // A term the clerk added is left over wherever the copy still has it, common word or not.
+    for (const r of ticked.filter((x) => x.user)) for (const o of findTerm(read.parts, r.text)) leftAt.add(o.part + ':' + o.start);
     const written = [...new Set(replacements.map((r) => r.placeholder))].filter((p) => p !== BLANK);
     if (written.length) {
       const ph = '(?:' + written.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')';
@@ -294,7 +415,7 @@ async function makeCopy() {
     if (previousUrl) URL.revokeObjectURL(previousUrl);
     // The copy against the original, independently of the check: every visible paragraph with
     // exactly the ticked places replaced, nothing else changed. A copy that differs is not handed out.
-    const differ = verifyCopy(state.read, read, replacements);
+    const differ = verifyCopy(state.read, read, widest(replacements));
     if (differ.length) {
       state.copy = { broken: differ.length };
       return;
@@ -375,6 +496,7 @@ function contextOf(o, becomes) {
 }
 
 function describe(row) {
+  if (row.user) return t('lab_user');
   if (row.kind === 'identifier') return t('lab_' + row.label);
   if (row.kind === 'number') return t('lab_number');
   if (row.ambiguous) {
@@ -387,6 +509,7 @@ function describe(row) {
 
 // What the row is, in a word or two: "Person", "E-Mail-Adresse", "Mehrdeutig".
 function shortLabel(row) {
+  if (row.user) return t('lab_short_user');
   if (row.kind === 'identifier') return t('lab_' + row.label);
   if (row.kind === 'number') return t('lab_number');
   if (row.ambiguous) return t('lab_short_ambiguous');
@@ -512,6 +635,12 @@ function renderRow(row) {
     ok.type = 'button';
     ok.addEventListener('click', () => { d.ok = !d.ok; if (d.ok) d.replace = false; render(); });
     actions.append(ok);
+    if (row.user) {
+      const drop = el('button', 'quiet', t('a_user_remove'));
+      drop.type = 'button';
+      drop.addEventListener('click', () => removeTerm(row));
+      actions.append(drop);
+    }
     if (state.host === 'word' && word.canComment() && row.occurrences[0].kind === 'body') {
       const c = el('button', 'quiet', t('comment'));
       c.type = 'button';
@@ -648,6 +777,13 @@ function draw() {
   $('a-style-label').textContent = t('a_style');
   $('a-copy').textContent = state.busy === 'copy' ? t('a_copying') : t('a_copy');
   $('a-copy-note').textContent = t('a_copy_note');
+  $('a-add-label').textContent = t('a_add_label');
+  $('a-add-text').placeholder = t('a_add_placeholder');
+  $('a-add-go').textContent = t('a_add');
+  $('a-add-go').disabled = $('a-add-text').disabled = Boolean(state.busy);
+  $('a-add-selection').hidden = state.host !== 'word';
+  $('a-add-selection').textContent = t('a_add_selection');
+  $('a-add-note').textContent = state.addNote;
 
   const r = state.result;
   $('a-summary').hidden = $('a-results').hidden = $('a-copybar').hidden = !r;
@@ -728,6 +864,9 @@ export function start(host) {
   try { if (localStorage.getItem('citecheck.placeholder') === 'short') state.style = 'short'; } catch { /* private mode */ }
   $('a-check').addEventListener('click', runCheck);
   $('a-copy').addEventListener('click', makeCopy);
+  $('a-add-go').addEventListener('click', () => addTerm($('a-add-text').value));
+  $('a-add-text').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addTerm($('a-add-text').value); } });
+  $('a-add-selection').addEventListener('click', addSelection);
   $('a-style').addEventListener('change', () => {
     restyle($('a-style').value);
     try { localStorage.setItem('citecheck.placeholder', state.style); } catch { /* private mode */ }
@@ -744,6 +883,7 @@ export function start(host) {
     state.file = { name: file.name, buffer: await file.arrayBuffer() };
     state.result = null;
     state.decide = new Map();
+    state.added = [];
     render();
     await runCheck();
   };

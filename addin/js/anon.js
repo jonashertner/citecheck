@@ -156,7 +156,7 @@ function germanByLine(text) {
 // ── the check ─────────────────────────────────────────────────────────────
 // The text in composed form and, per character of it, where it starts in `s`;
 // [s, null] when it is composed already.
-function compose(s) {
+export function compose(s) {
   if (s.normalize('NFC') === s) return [s, null];
   let out = '';
   const where = [];

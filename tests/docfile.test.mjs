@@ -243,3 +243,17 @@ test('retest 2026-10-12: a name ticked, the e-mail address it stands in left ope
   // a field name is no address: the name in it is replaced where it stands
   assert.match(partXml(copy, 'word/document.xml'), /MERGEFIELD Partei_A\.________ /);
 });
+
+test('own terms: a term the clerk added is replaced at every place it stands, and nowhere is left', async () => {
+  const { findTerm } = await import('../addin/js/anon-pane.js');
+  const read = await readFile(buffer, 'Urteil Müller.docx');
+  const hits = findTerm(read.parts, 'wiprächtiger');
+  assert.ok(hits.length > 0);
+  const places = hits.map((o) => ({ file: read.parts[o.part].where.file, seq: read.parts[o.part].where.seq, start: o.start, end: o.end, text: o.text }));
+  const replacements = [{ placeholder: 'C.________', forms: ['wiprächtiger', ...hits.map((o) => o.text)], places }];
+  const copy = await anonymizedCopy(buffer, replacements);
+  const again = await readFile(copy, 'kopie.docx');
+  assert.deepEqual(findTerm(again.parts, 'wiprächtiger'), []);
+  assert.ok(again.parts.some((p) => p.text.includes('Hans C.________')));
+  assert.deepEqual(verifyCopy(read, again, replacements), []);
+});
